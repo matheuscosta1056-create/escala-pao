@@ -1,7 +1,7 @@
-// Página pública: quem traz o pão hoje + escala da semana, com impressão
+// Página pública: quem traz o pão hoje, escala da semana, lista do café de sexta e impressão
 
-import * as R from './regras.js?v=3';
-import { lerEscalaPublica } from './dados-publico.js?v=3';
+import * as R from './regras.js?v=4';
+import { lerEscalaPublica, lerLanche, escolherItem } from './dados-publico.js?v=4';
 
 const $main = document.getElementById('conteudo');
 const $impressao = document.getElementById('impressao');
@@ -10,9 +10,23 @@ const hoje = R.hoje();
 let pub = null;
 let semanas = [];   // [[dia, dia, ...], ...] agrupado por segunda-feira
 let atual = 0;
+let lanches = {};   // data → {itens, escolhas}
+let escolhendo = null; // "data|id" do item com o campo de nome aberto
 
 const h = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const segundaDe = d => R.addDias(d, 1 - (R.diaDaSemana(d) || 7));
+
+function lembrarNome(nome) {
+    try { if (nome) localStorage.setItem('pao-meu-nome', nome); return localStorage.getItem('pao-meu-nome') || ''; } catch { return ''; }
+}
+
+function aviso(msg, tipo = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast mostrar ' + tipo;
+    clearTimeout(aviso.t);
+    aviso.t = setTimeout(() => el.classList.remove('mostrar'), 4000);
+}
 
 // Bolinha com as 3 primeiras letras do nome de guerra (última palavra)
 function avatar(nome, classe = '') {
@@ -34,9 +48,35 @@ function periodo(semana, extenso = false) {
 
 function descricao(d) {
     if (d.feriado) return { texto: d.feriado, icone: '🎉', classe: 'feriado' };
+    if (d.cafe) return { texto: 'Café da seção', icone: '☕', classe: 'cafe' };
     if (d.sem_pao) return { texto: 'Sem pão', icone: '🚫', classe: 'feriado' };
     if (!d.militar) return { texto: '—', icone: '', classe: 'vazio' };
     return { texto: d.militar, icone: '', classe: '' };
+}
+
+function cartaoLanche(dia) {
+    const lanche = lanches[dia.data];
+    if (!lanche) return '';
+    const itens = R.itensLanche(lanche, lanche.escolhas);
+    const livres = itens.filter(i => !i.nome).length;
+    const linhas = itens.map(i => {
+        const chave = dia.data + '|' + i.id;
+        let direita;
+        if (i.nome) direita = `<span class="lanche-nome">✔ ${h(i.nome)}</span>`;
+        else if (escolhendo === chave) {
+            direita = `<form class="lanche-escolher" data-data="${dia.data}" data-id="${h(i.id)}">
+                <input name="nome" placeholder="Posto e nome" maxlength="40" minlength="2" required value="${h(lembrarNome())}" autofocus>
+                <button class="btn verde">Confirmar</button>
+            </form>`;
+        } else direita = `<button class="btn claro" data-escolher="${chave}">Eu levo</button>`;
+        return `<div class="lanche-item ${i.nome ? 'ok' : ''}"><span class="lanche-produto">${h(i.produto)}</span>${direita}</div>`;
+    }).join('');
+    return `<section class="card cafe-card">
+        <div class="cabecalho"><h3>☕ Café da seção — ${R.dataExtenso(dia.data)}</h3>
+            <span class="selo">${livres ? `${livres} ${livres === 1 ? 'item livre' : 'itens livres'}` : 'lista completa ✔'}</span></div>
+        <p class="muted">Escolha o que você vai levar: toque em “Eu levo” num item livre e coloque seu nome.</p>
+        <div class="lanche-lista">${linhas}</div>
+    </section>`;
 }
 
 function render() {
@@ -45,12 +85,19 @@ function render() {
     const proximo = pub.dias.find(d => d.data > hoje && d.militar);
 
     let destaque;
-    if (dHoje?.militar) {
+    if (dHoje?.cafe) {
+        destaque = `<section class="hero cafe">
+            <div class="hero-data">${R.dataExtenso(hoje)}</div>
+            <div class="emoji-grande">☕</div>
+            <h1>Hoje tem café da seção</h1>
+        </section>`;
+    } else if (dHoje?.militar) {
         destaque = `<section class="hero ${dHoje.status === 'trouxe' ? 'st-trouxe' : ''}">
             <div class="hero-data">${R.dataExtenso(hoje)}</div>
             <p class="hero-sub" style="margin:0 0 10px">Hoje quem traz o pão é</p>
             ${avatar(dHoje.militar, 'gigante')}
             <h1>${h(dHoje.militar)}</h1>
+            ${dHoje.qtd ? `<p class="hero-sub"><b>${dHoje.qtd} pães</b></p>` : ''}
             ${dHoje.status === 'trouxe' ? '<p class="hero-sub">✔ já trouxe</p>' : ''}
         </section>`;
     } else {
@@ -68,12 +115,16 @@ function render() {
         return `<div class="pub-dia ${x.classe} ${d.data === hoje ? 'hoje' : ''} ${d.data < hoje ? 'passado' : ''}">
             <div class="pub-data"><b>${R.DIAS_CURTO[R.diaDaSemana(d.data)]}</b><small>${R.diaMes(d.data)}</small></div>
             ${x.icone ? `<span class="pub-icone">${x.icone}</span>` : d.militar ? avatar(d.militar) : '<span class="pub-icone"></span>'}
-            <div class="pub-nome">${h(x.texto)}${d.data === hoje ? ' <span class="selo">hoje</span>' : ''}</div>
+            <div class="pub-nome">${h(x.texto)}${d.qtd ? ` <span class="cal-qtd">${d.qtd} pães</span>` : ''}${d.data === hoje ? ' <span class="selo">hoje</span>' : ''}</div>
             ${d.status === 'trouxe' ? '<span class="pub-ok">✔</span>' : ''}
         </div>`;
     }).join('');
 
+    // Lista do café: a próxima sexta de café (a partir de hoje)
+    const proximoCafe = pub.dias.find(d => d.cafe && d.data >= hoje);
+
     $main.innerHTML = `${destaque}
+    ${proximoCafe ? cartaoLanche(proximoCafe) : ''}
     <section class="card">
         <div class="cabecalho">
             <h3>Semana de ${periodo(semana)}</h3>
@@ -90,6 +141,9 @@ function render() {
         <a href="./">Área do administrador</a>
     </p>`;
 
+    // Folha impressa da semana (+ lista do café, se a semana tiver)
+    const cafeDaSemana = semana.find(d => d.cafe && lanches[d.data]);
+    const itensCafe = cafeDaSemana ? R.itensLanche(lanches[cafeDaSemana.data], lanches[cafeDaSemana.data].escolhas) : [];
     $impressao.innerHTML = `
         <h1>🥖 ${h(pub.titulo || 'Escala do Pão')}</h1>
         <h2>Semana de ${periodo(semana, true)}</h2>
@@ -98,10 +152,21 @@ function render() {
             <tbody>${semana.map(d => {
                 const x = descricao(d);
                 return `<tr class="${x.classe}"><td>${R.nomeDiaSemana(d.data).replace(/^./, c => c.toUpperCase())}</td>
-                    <td>${R.dataBr(d.data)}</td><td>${x.icone ? x.icone + ' ' : ''}${h(x.texto)}</td><td></td></tr>`;
+                    <td>${R.dataBr(d.data)}</td><td>${x.icone ? x.icone + ' ' : ''}${h(x.texto)}${d.qtd ? ` (${d.qtd} pães)` : ''}</td><td></td></tr>`;
             }).join('')}</tbody>
         </table>
+        ${cafeDaSemana ? `<h3>☕ Café da seção — ${R.dataBr(cafeDaSemana.data)}</h3>
+        <table class="tabela-cafe">
+            <thead><tr><th>Produto</th><th>Quem leva</th></tr></thead>
+            <tbody>${itensCafe.map(i => `<tr><td>${h(i.produto)}</td><td>${h(i.nome)}</td></tr>`).join('')}</tbody>
+        </table>` : ''}
         <p class="rodape-impressao">Impresso em ${R.dataBr(hoje)}</p>`;
+}
+
+async function carregarLanches() {
+    const dias = pub.dias.filter(d => d.cafe && d.data >= R.addDias(hoje, -6));
+    const lidos = await Promise.all(dias.map(d => lerLanche(d.data).catch(() => null)));
+    lanches = Object.fromEntries(dias.map((d, i) => [d.data, lidos[i]]).filter(([, l]) => l));
 }
 
 document.addEventListener('click', e => {
@@ -110,7 +175,33 @@ document.addEventListener('click', e => {
         atual = Math.min(semanas.length - 1, Math.max(0, atual + Number(nav.dataset.semana)));
         render();
     }
+    const escolher = e.target.closest('[data-escolher]');
+    if (escolher) {
+        escolhendo = escolher.dataset.escolher;
+        render();
+        document.querySelector('.lanche-escolher input')?.focus();
+    }
     if (e.target.closest('#btn-imprimir')) window.print();
+});
+
+document.addEventListener('submit', async e => {
+    const form = e.target.closest('.lanche-escolher');
+    if (!form) return;
+    e.preventDefault();
+    const nome = form.nome.value.trim().replace(/\s+/g, ' ');
+    if (nome.length < 2) return;
+    form.querySelector('button').disabled = true;
+    try {
+        await escolherItem(form.dataset.data, form.dataset.id, nome);
+        lembrarNome(nome);
+        aviso('Anotado! Obrigado. ☕');
+    } catch (err) {
+        console.error(err);
+        aviso(err.code === 'permission-denied' ? 'Esse item acabou de ser escolhido por outra pessoa. Escolha outro.' : 'Não foi possível salvar. Tente de novo.', 'erro');
+    }
+    escolhendo = null;
+    await carregarLanches();
+    render();
 });
 
 try {
@@ -125,6 +216,7 @@ try {
         // Semana atual; no fim de semana, já mostra a próxima
         const alvo = [6, 0].includes(R.diaDaSemana(hoje)) ? R.addDias(segundaDe(hoje), 7) : segundaDe(hoje);
         atual = Math.max(0, semanas.findIndex(s => s[0].data === alvo));
+        await carregarLanches();
         render();
         if (new URLSearchParams(location.search).has('imprimir')) setTimeout(() => window.print(), 400);
     }

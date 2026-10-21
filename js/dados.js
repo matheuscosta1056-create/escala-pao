@@ -5,9 +5,9 @@ import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-    getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, addDoc, writeBatch,
+    getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, deleteField, addDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=3';
+import { firebaseConfig } from './firebase-config.js?v=4';
 
 export const configurado = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLE_AQUI';
 
@@ -45,6 +45,38 @@ export async function lerPublico() {
     }
 }
 export const salvarPublico = dados => setDoc(doc(db, 'publico', 'escala'), dados);
+
+// ---------- Café de sexta ----------
+// lanche/{data} = {itens: {id: produto}}  ·  lanche/{data}/escolhas/{id} = {nome}
+
+export async function carregarLanches(desde) {
+    try {
+        const res = {};
+        for (const d of (await getDocs(collection(db, 'lanche'))).docs.filter(x => x.id >= desde)) {
+            const esc = await getDocs(collection(db, 'lanche', d.id, 'escolhas'));
+            res[d.id] = { ...d.data(), escolhas: Object.fromEntries(esc.docs.map(e => [e.id, e.data()])) };
+        }
+        return res;
+    } catch (e) {
+        console.warn('Lista do lanche indisponível:', e.message);
+        return {};
+    }
+}
+export const criarLanche = (data, itens) => setDoc(doc(db, 'lanche', data), { itens });
+export const adicionarItemLanche = (data, id, produto) => setDoc(doc(db, 'lanche', data), { itens: { [id]: produto } }, { merge: true });
+export async function removerItemLanche(data, id) {
+    await updateDoc(doc(db, 'lanche', data), { [`itens.${id}`]: deleteField() });
+    await deleteDoc(doc(db, 'lanche', data, 'escolhas', id));
+}
+export const definirEscolha = (data, id, nome) => (nome
+    ? setDoc(doc(db, 'lanche', data, 'escolhas', id), { nome })
+    : deleteDoc(doc(db, 'lanche', data, 'escolhas', id)));
+export async function apagarLanche(data) {
+    const lote = writeBatch(db);
+    for (const e of (await getDocs(collection(db, 'lanche', data, 'escolhas'))).docs) lote.delete(e.ref);
+    lote.delete(doc(db, 'lanche', data));
+    await lote.commit();
+}
 
 // ---------- Escrita ----------
 

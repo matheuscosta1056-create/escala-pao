@@ -224,3 +224,24 @@ body.carregando main::before{content:'Carregando…';display:block;text-align:ce
   .impressao tr.feriado td{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-weight:normal;font-style:italic}
   .rodape-impressao{margin-top:14pt;font-size:9pt;color:#666;text-align:right}
 }
+
+/* Café de sexta */
+.hero.cafe{background:linear-gradient(160deg,#5b3a1e,#8c5a2b)}
+.cal-dia.cafe{background:#f7efe6;border-color:#e2cdb4}
+.cal-qtd{display:inline-block;font-size:11px;font-weight:700;color:#8c5a2b;background:#f7efe6;border-radius:999px;padding:1px 7px}
+.cafe-card{border-left:6px solid #8c5a2b}
+.lanche-lista{display:flex;flex-direction:column;gap:6px}
+.lanche-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--borda);border-radius:12px;padding:8px 12px;background:#fff}
+.lanche-item.ok{background:#f2faf4;border-color:#cfe8d6}
+.lanche-produto{flex:1;min-width:130px;font-weight:600}
+.lanche-nome{color:var(--verde2);font-weight:600}
+.lanche-item:not(.ok) .lanche-nome{color:var(--muted);font-weight:400}
+.lanche-acoes{display:flex;gap:2px}
+.link.perigo{color:var(--verm)}
+.lanche-escolher{display:flex;gap:6px;flex-wrap:wrap}
+.lanche-escolher input{min-width:170px;padding:8px 10px}
+@media print{
+  .impressao h3{font-size:15pt;margin:20pt 0 8pt}
+  .impressao .tabela-cafe td{padding:9pt;font-size:13pt;font-weight:normal!important}
+  .impressao .tabela-cafe td:last-child{width:50%}
+}

@@ -1,7 +1,7 @@
 // Rodar: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico } from '../js/regras.js';
+import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico, mensagem, listaProdutos, itensLanche, textoLanche } from '../js/regras.js';
 
 const NOMES = ['Silva', 'Souza', 'Costa', 'Lima', 'Pereira', 'Almeida', 'Rocha', 'Gomes', 'Ribeiro', 'Martins', 'Carvalho', 'Araujo', 'Melo', 'Barbosa', 'Teixeira'];
 const HOJE = '2026-10-20';
@@ -122,6 +122,38 @@ test('resumo público: semanas inteiras, feriados e sem telefone', () => {
     assert.ok(!JSON.stringify(dias).includes('telefone'));
     const sabado = resumoPublico(dados, '2026-10-24', 1);
     assert.equal(sabado[0].data, '2026-10-19', 'no sábado ainda mostra a semana corrente');
+});
+
+test('sexta de café: ninguém traz e a folga não conta', () => {
+    const dados = cenario();
+    const sexta = '2026-10-23';
+    const antes = simular(dados, '2027-01-01', HOJE).dias;
+    dados.registros[sexta] = { militar_id: null, status: 'cafe', fixo: true, obs: '' };
+    const sim = simular(dados, '2027-01-01', HOJE);
+    assert.equal(sim.dias[sexta].status, 'cafe');
+    assert.equal(sim.dias[sexta].militar_id, null);
+    assert.equal(sim.dias['2026-10-26'].militar_id, antes[sexta].militar_id, 'quem seria da sexta passa para segunda');
+    assert.equal(sim.dias['2026-10-26'].folga, antes[sexta].folga, 'sem somar folga no café');
+    assert.deepEqual(resumoPublico(dados, HOJE, 1, 10).find(d => d.data === sexta), { data: sexta, cafe: true });
+});
+
+test('sexta de pão: resumo e lembrete levam a quantidade', () => {
+    const dados = cenario();
+    const sexta = resumoPublico(dados, HOJE, 1, 10).find(d => d.data === '2026-10-23');
+    assert.equal(sexta.qtd, 10);
+    assert.equal(resumoPublico(dados, HOJE, 1, 10).find(d => d.data === '2026-10-22').qtd, undefined);
+    const m = { posto: '3º Sgt', nome: 'Gomes' };
+    assert.match(mensagem('Oi {nome}', m, '2026-10-23', 10), /Oi Gomes\n🥖 Sexta-feira: são 10 pães\./);
+    assert.equal(mensagem('Traga {qtd} pães, {nome}', m, '2026-10-23', 10), 'Traga 10 pães, Gomes');
+    assert.equal(mensagem('Oi {nome}', m, '2026-10-22', 10), 'Oi Gomes', 'outros dias não mudam');
+});
+
+test('lista do lanche', () => {
+    assert.deepEqual(listaProdutos(' Pão \n\nSuco\n'), ['Pão', 'Suco']);
+    const itens = itensLanche({ itens: { i002: 'Suco', i001: 'Pão', i1730000000000: 'Bolo' } }, { i002: { nome: 'Cb Novato' } });
+    assert.deepEqual(itens.map(i => i.produto), ['Pão', 'Suco', 'Bolo']);
+    assert.equal(textoLanche('☕ {data}\n{lista}\n{link}', '2026-10-23', itens, 'http://x'),
+        '☕ Sex 23/10\n• Pão — _(livre)_\n• Suco — Cb Novato\n• Bolo — _(livre)_\nhttp://x');
 });
 
 test('link do WhatsApp', () => {

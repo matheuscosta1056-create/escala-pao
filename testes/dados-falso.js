@@ -65,6 +65,29 @@ export async function apagar(col, id) {
     delete store[col][id];
     persistir();
 }
+// Café de sexta (mesmo formato do Firestore: itens + escolhas)
+store.lanche ||= {};
+export async function carregarLanches(desde) {
+    return structuredClone(Object.fromEntries(Object.entries(store.lanche).filter(([d]) => d >= desde)));
+}
+export async function criarLanche(data, itens) { store.lanche[data] = { itens: { ...itens }, escolhas: {} }; persistir(); }
+export async function adicionarItemLanche(data, id, produto) {
+    store.lanche[data] ||= { itens: {}, escolhas: {} };
+    store.lanche[data].itens[id] = produto;
+    persistir();
+}
+export async function removerItemLanche(data, id) {
+    delete store.lanche[data].itens[id];
+    delete store.lanche[data].escolhas[id];
+    persistir();
+}
+export async function definirEscolha(data, id, nome) {
+    if (nome) store.lanche[data].escolhas[id] = { nome };
+    else delete store.lanche[data].escolhas[id];
+    persistir();
+}
+export async function apagarLanche(data) { delete store.lanche[data]; persistir(); }
+
 let publico = JSON.parse(sessionStorage.getItem('demo-publico') || 'null');
 export async function lerPublico() { return publico; }
 export async function salvarPublico(dados) {

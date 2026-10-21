@@ -17,6 +17,23 @@ service cloud.firestore {
       allow write: if autorizado();
     }
 
+    // Café de sexta: qualquer um vê a lista e pega um item LIVRE (só o nome, sem sobrescrever);
+    // trocar, liberar e apagar é só com o administrador
+    match /lanche/{data} {
+      allow read: if true;
+      allow write: if autorizado();
+
+      match /escolhas/{item} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasOnly(['nome'])
+          && request.resource.data.nome is string
+          && request.resource.data.nome.size() >= 2
+          && request.resource.data.nome.size() <= 40
+          && item in get(/databases/$(database)/documents/lanche/$(data)).data.itens;
+        allow update, delete: if autorizado();
+      }
+    }
+
     match /{colecao}/{id} {
       allow read, write: if autorizado()
         && colecao in ['militares', 'afastamentos', 'escala', 'avisos', 'feriados_extras', 'feriados_ignorados', 'config'];

@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=3';
-import * as F from './dados.js?v=3';
+import * as R from './regras.js?v=4';
+import * as F from './dados.js?v=4';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -49,9 +49,11 @@ async function recarregar() {
     const ignorados = raw.feriados_ignorados.map(f => f.id);
     let anoIni = Number(hoje.slice(0, 4));
     for (const m of militares) anoIni = Math.min(anoIni, Number(m.data_inclusao.slice(0, 4)));
+    const lanches = await F.carregarLanches(R.addDias(hoje, -7));
 
     D = {
-        raw, cfg, militares, registros, extras, ignorados,
+        raw, cfg, militares, registros, extras, ignorados, lanches,
+        qtdSexta: Number(cfg.qtd_sexta) || 0,
         afastamentos: raw.afastamentos,
         avisos: raw.avisos,
         porId: Object.fromEntries(militares.map(m => [m.id, m])),
@@ -90,7 +92,7 @@ async function invalidarHoje() {
 // Atualiza o resumo da página pública (só nomes e datas) quando a escala muda
 async function publicar() {
     const canonico = v => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
-    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra()) };
+    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra(), R.hoje(), 6, D.qtdSexta) };
     const atual = await F.lerPublico();
     if (atual === undefined) return console.warn('Página pública: sem permissão nas regras do Firestore.');
     if (atual && canonico({ titulo: atual.titulo, dias: atual.dias }) === canonico(novo)) return;
@@ -113,8 +115,43 @@ function botaoWhats(m, data, tipo, modelo, rotulo) {
         return `<button class="btn claro" data-acao="editar-militar" data-id="${h(m.id)}">⚠ Cadastrar WhatsApp</button>`;
     }
     const feito = D.avisos.filter(a => a.data === data && a.tipo === tipo).map(a => a.enviado_em).sort().pop();
-    return `<a class="btn whats${feito ? ' enviado' : ''}" target="_blank" rel="noopener" href="${h(R.linkWhats(m.telefone, R.mensagem(modelo, m, data)))}"
+    return `<a class="btn whats${feito ? ' enviado' : ''}" target="_blank" rel="noopener" href="${h(R.linkWhats(m.telefone, R.mensagem(modelo, m, data, D.qtdSexta)))}"
         data-aviso="${tipo}" data-data="${data}" data-militar="${h(m.id)}">${feito ? '✓ Avisado às ' + horaLocal(feito) + ' · reenviar' : '📲 ' + rotulo}</a>`;
+}
+
+// Cartão de cada sexta de café com a lista do lanche
+function cartoesCafe(datas) {
+    return datas.map(d => {
+        const lanche = D.lanches[d];
+        const itens = R.itensLanche(lanche, lanche?.escolhas);
+        const escolhidos = itens.filter(i => i.nome).length;
+        const texto = R.textoLanche(D.cfg.msg_cafe, d, itens, linkPublico());
+        const lista = itens.map(i => `<div class="lanche-item ${i.nome ? 'ok' : ''}">
+            <span class="lanche-produto">${h(i.produto)}</span>
+            <span class="lanche-nome">${i.nome ? h(i.nome) : '<i>livre</i>'}</span>
+            <span class="lanche-acoes">
+                <button class="link" data-acao="lanche-definir" data-data="${d}" data-id="${h(i.id)}" data-produto="${h(i.produto)}" data-nome="${h(i.nome)}">${i.nome ? 'trocar' : 'pôr nome'}</button>
+                ${i.nome ? `<button class="link" data-acao="lanche-limpar" data-data="${d}" data-id="${h(i.id)}">liberar</button>` : ''}
+                <button class="link perigo" data-acao="lanche-remover" data-data="${d}" data-id="${h(i.id)}" data-confirm="Tirar “${h(i.produto)}” da lista desta sexta?" title="Tirar da lista">✕</button>
+            </span>
+        </div>`).join('');
+        return `<section class="card cafe-card">
+            <div class="cabecalho"><h3>☕ Café da seção — ${R.dataExtenso(d)}</h3>
+                ${lanche ? `<span class="selo">${escolhidos} de ${itens.length} itens escolhidos</span>` : ''}</div>
+            ${lanche ? `<div class="lanche-lista">${lista}</div>
+            <form data-form="lanche-adicionar" data-data="${d}" class="extra-form">
+                <input name="produto" placeholder="Outro item (ex.: pão de queijo)" maxlength="60" required>
+                <button class="btn claro">+ Adicionar item</button>
+            </form>
+            <div class="acoes">
+                <a class="btn whats" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">📲 Enviar lista no grupo</a>
+                <button class="btn claro" data-acao="copiar" data-texto="${h(texto)}">📋 Copiar</button>
+            </div>
+            <p class="dica">Na página pública, cada um toca num item livre e coloca o nome (inclusive quem não está na escala do pão). Só você pode trocar ou liberar.</p>`
+            : `<p class="muted">A lista do lanche desta sexta ainda não foi criada.</p>
+               <button class="btn verde" data-acao="sexta-cafe" data-data="${d}">Criar lista do lanche</button>`}
+        </section>`;
+    }).join('');
 }
 
 function telaHoje() {
@@ -151,7 +188,9 @@ function telaHoje() {
         if (D.feriados[d]) return `${R.diaCurto(d)} — feriado (${D.feriados[d]})`;
         const x = sim.dias[d];
         if (!x) return null;
-        return `${R.diaCurto(d)} — ${x.status === 'sem_pao' ? 'sem pão' : R.nome(D.porId[x.militar_id])}`;
+        if (x.status === 'sem_pao') return `${R.diaCurto(d)} — sem pão`;
+        if (x.status === 'cafe') return `${R.diaCurto(d)} — ☕ café da seção`;
+        return `${R.diaCurto(d)} — ${R.nome(D.porId[x.militar_id])}${R.eSexta(d) && D.qtdSexta ? ` (${D.qtdSexta} pães)` : ''}`;
     }).filter(Boolean);
     let msgGrupo = D.cfg.msg_grupo
         .replaceAll('{periodo}', R.diaMes(semanas[0][0]) + ' a ' + R.diaMes(semanas[0][4]))
@@ -161,7 +200,14 @@ function telaHoje() {
     // Hero
     let hero;
     const mHoje = diaHoje?.militar_id ? D.porId[diaHoje.militar_id] : null;
-    if (!mHoje) {
+    if (diaHoje?.status === 'cafe') {
+        hero = `<section class="hero cafe">
+            <div class="hero-data">${R.dataExtenso(hoje)}</div>
+            <div class="emoji-grande">☕</div>
+            <h1>Hoje tem café da seção</h1>
+            <p>Ninguém traz pão hoje. A lista do lanche está logo abaixo.</p>
+        </section>`;
+    } else if (!mHoje) {
         let motivo;
         if (diaHoje) motivo = diaHoje.status === 'sem_pao' ? 'Dia marcado como sem pão.' : 'Todos estão afastados.';
         else if (D.feriados[hoje]) motivo = 'Feriado: ' + h(D.feriados[hoje]);
@@ -179,12 +225,12 @@ function telaHoje() {
             <div class="hero-data">${R.dataExtenso(hoje)}</div>
             ${avatar(mHoje, 'gigante')}
             <h1>${h(R.nome(mHoje))}</h1>
-            <p class="hero-sub">${{ previsto: 'traz o pão hoje', trouxe: 'trouxe o pão hoje ✔', faltou: 'não trouxe — fica para o próximo dia' }[st]}</p>
+            <p class="hero-sub">${{ previsto: 'traz o pão hoje', trouxe: 'trouxe o pão hoje ✔', faltou: 'não trouxe — fica para o próximo dia' }[st]}${R.eSexta(hoje) && D.qtdSexta && st === 'previsto' ? ` · <b>${D.qtdSexta} pães</b>` : ''}</p>
             ${st === 'previsto' ? botaoWhats(mHoje, hoje, 'dia', D.cfg.msg_dia, 'Avisar no WhatsApp') : ''}
             <div class="hero-acoes">
                 ${[['trouxe', '✔ Trouxe'], ['faltou', '✘ Não trouxe']].map(([s, rot]) =>
                     `<button class="btn pilula ${st === s ? 'marcado' : ''}" data-acao="dia-status" data-data="${hoje}" data-status="${st === s ? 'previsto' : s}">${rot}</button>`).join('')}
-                <button class="btn pilula" data-acao="abrir-dia" data-data="${hoje}" data-rotulo="Hoje" data-militar="${h(mHoje.id)}" data-fixo="${diaHoje.fixo ? 1 : 0}">🔁 Trocar</button>
+                <button class="btn pilula" data-acao="abrir-dia" data-data="${hoje}" data-rotulo="Hoje" data-militar="${h(mHoje.id)}" data-fixo="${diaHoje.fixo ? 1 : 0}" data-status="${st}">🔁 Trocar</button>
             </div>
         </section>`;
     }
@@ -201,18 +247,20 @@ function telaHoje() {
         const fer = D.feriados[d];
         const m = x ? D.porId[x.militar_id] : null;
         const passado = d < hoje;
-        const cls = ['cal-dia', d === hoje && 'hoje', passado && 'passado', (fer || x?.status === 'sem_pao') && 'feriado'].filter(Boolean).join(' ');
+        const cls = ['cal-dia', d === hoje && 'hoje', passado && 'passado', (fer || x?.status === 'sem_pao') && 'feriado', x?.status === 'cafe' && 'cafe'].filter(Boolean).join(' ');
         const clicavel = !passado && !fer && x;
         let corpo;
         if (fer) corpo = `<div class="cal-icone">🎉</div><div class="cal-nome">${h(fer)}</div>`;
         else if (x?.status === 'sem_pao') corpo = `<div class="cal-icone">🚫</div><div class="cal-nome">Sem pão</div>`;
+        else if (x?.status === 'cafe') corpo = `<div class="cal-icone">☕</div><div class="cal-nome">Café</div>`;
         else if (m) {
             const selo = x.status === 'trouxe' ? '<span class="cal-selo ok">✔</span>'
                 : x.status === 'faltou' ? '<span class="cal-selo erro">✘</span>'
                 : x.fixo ? '<span class="cal-selo troca" title="Designado manualmente">🔁</span>' : '';
-            corpo = `${avatar(m)}<div class="cal-nome">${h(m.nome)}</div>${selo}`;
+            const qtd = R.eSexta(d) && D.qtdSexta ? `<span class="cal-qtd">${D.qtdSexta} pães</span>` : '';
+            corpo = `${avatar(m)}<div class="cal-nome">${h(m.nome)}</div>${qtd}${selo}`;
         } else corpo = '<div class="cal-nome muted">—</div>';
-        const attrs = clicavel ? `data-acao="abrir-dia" data-data="${d}" data-rotulo="${R.diaCurto(d)}" data-militar="${h(x.militar_id || '')}" data-fixo="${x.fixo ? 1 : 0}"` : '';
+        const attrs = clicavel ? `data-acao="abrir-dia" data-data="${d}" data-rotulo="${R.diaCurto(d)}" data-militar="${h(x.militar_id || '')}" data-fixo="${x.fixo ? 1 : 0}" data-status="${x.status}"` : '';
         return `<div class="${cls}${clicavel ? ' clicavel' : ''}" ${attrs}><div class="cal-num">${R.diaMes(d)}</div>${corpo}</div>`;
     }).join('');
 
@@ -233,8 +281,9 @@ function telaHoje() {
     return `${hero}${amanha}
     <section class="card"><h3>Próximos dias</h3>
         <div class="calendario">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(s => `<div class="cal-cab">${s}</div>`).join('')}${calendario}</div>
-        <p class="dica">Toque num dia para trocar o militar ou marcar “sem pão”.</p>
+        <p class="dica">Toque num dia para trocar o militar, marcar “sem pão” ou, na sexta, marcar café da seção.</p>
     </section>
+    ${cartoesCafe(semanas.flat().filter(d => d >= hoje && sim.dias[d]?.status === 'cafe'))}
     <section class="card"><h3>Fila</h3><div class="fila">${filaHtml}</div></section>
     <section class="card grupo">
         <div><h3>Escala da semana no grupo</h3><p class="muted">Manda a semana inteira de uma vez no grupo da seção.</p></div>
@@ -266,6 +315,8 @@ function telaHoje() {
         <div class="dlg-rodape">
             <button class="btn claro" data-acao="dia-status" data-status="sem_pao" data-data="">🚫 Sem pão neste dia</button>
             <button class="btn claro" data-acao="dia-automatico" data-data="" id="dlg-auto">↩ Voltar ao automático</button>
+            <button class="btn claro" data-acao="sexta-cafe" data-data="" id="dlg-cafe">☕ Café da seção nesta sexta</button>
+            <button class="btn claro" data-acao="sexta-pao" data-data="" id="dlg-pao" data-confirm="Voltar a ser dia de pão? A lista do lanche desta sexta será apagada.">🥖 Voltar a ser dia de pão</button>
         </div>
     </dialog>`;
 }
@@ -461,6 +512,19 @@ function telaAjustes() {
         </form>
     </section>
 
+    <section class="card"><h3>☕ Sexta-feira</h3>
+        <p class="muted">Toda sexta é de pão, com a quantidade abaixo. Para fazer café da seção, toque na sexta no calendário (tela Hoje) e escolha “Café da seção”.</p>
+        <form data-form="sexta-salvar">
+            <div class="mensagens">
+                <label>Pães na sexta <input type="number" name="qtd_sexta" min="0" max="99" value="${h(D.qtdSexta)}"></label>
+                <label>Mensagem da lista do café (grupo) <textarea name="msg_cafe" rows="4">${h(D.cfg.msg_cafe)}</textarea></label>
+                <label>Produtos do lanche (um por linha) <textarea name="produtos_lanche" rows="8">${h(D.cfg.produtos_lanche)}</textarea></label>
+                <p class="dica">Os produtos entram em cada nova sexta de café; dá para tirar ou incluir itens só naquela semana. Na mensagem do café: <code>{data}</code> <code>{lista}</code> <code>{link}</code>.</p>
+            </div>
+            <button class="btn verde">Salvar sexta-feira</button>
+        </form>
+    </section>
+
     <section class="card"><h3>💬 Mensagens do WhatsApp</h3>
         <form data-form="config-salvar">
             <div class="mensagens">
@@ -547,7 +611,10 @@ const ACOES = {
         const sel = dlg.querySelector('[name=militar_id]');
         [...sel.options].forEach(o => o.disabled = o.value === ds.militar);
         sel.value = [...sel.options].find(o => !o.disabled)?.value ?? '';
-        dlg.querySelector('#dlg-auto').hidden = ds.fixo !== '1';
+        const cafe = ds.status === 'cafe';
+        dlg.querySelector('#dlg-auto').hidden = ds.fixo !== '1' || cafe;
+        dlg.querySelector('#dlg-cafe').hidden = !R.eSexta(ds.data) || cafe;
+        dlg.querySelector('#dlg-pao').hidden = !cafe;
         dlg.showModal();
     },
     'editar-militar': ds => {
@@ -649,6 +716,7 @@ const ACOES = {
     // Dias
     'dia-status': async ds => {
         const { data, status } = ds;
+        if (status === 'cafe') return ACOES['sexta-cafe'](ds);
         if (status === 'sem_pao') await F.salvar('escala', data, { militar_id: null, status: 'sem_pao', fixo: true, obs: D.registros[data]?.obs || '' });
         else await F.salvar('escala', data, { status });
         return {
@@ -663,6 +731,35 @@ const ACOES = {
         for (const a of D.avisos) if (a.data === ds.data) ops.push(['del', 'avisos', a.id]);
         await F.emLote(ops);
         return `Dia ${R.dataBr(ds.data)} voltou para o cálculo automático.`;
+    },
+
+    // Café de sexta
+    'sexta-cafe': async ds => {
+        await F.salvar('escala', ds.data, { militar_id: null, status: 'cafe', fixo: true, obs: D.registros[ds.data]?.obs || '' });
+        if (!D.lanches[ds.data]) {
+            const itens = Object.fromEntries(R.listaProdutos(D.cfg.produtos_lanche).map((p, i) => ['i' + String(i + 1).padStart(3, '0'), p]));
+            await F.criarLanche(ds.data, itens);
+        }
+        return `${R.diaCurto(ds.data)} é café da seção: ninguém traz pão e a lista do lanche está aberta na página pública.`;
+    },
+    'sexta-pao': async ds => {
+        await F.apagar('escala', ds.data);
+        if (D.lanches[ds.data]) await F.apagarLanche(ds.data);
+        return `${R.diaCurto(ds.data)} voltou a ser dia de pão${D.qtdSexta ? ` (${D.qtdSexta} pães)` : ''}.`;
+    },
+    'lanche-definir': async ds => {
+        const nome = prompt(`Quem vai levar “${ds.produto}”?`, ds.nome || '');
+        if (nome === null || !nome.trim()) return null;
+        await F.definirEscolha(ds.data, ds.id, nome.trim());
+        return `${ds.produto}: ${nome.trim()}.`;
+    },
+    'lanche-limpar': async ds => {
+        await F.definirEscolha(ds.data, ds.id, '');
+        return 'Item liberado.';
+    },
+    'lanche-remover': async ds => {
+        await F.removerItemLanche(ds.data, ds.id);
+        return 'Item tirado da lista.';
     },
 };
 
@@ -730,6 +827,15 @@ const FORMS = {
         return 'Mensagens salvas.';
     },
 
+    'sexta-salvar': async v => {
+        await F.salvar('config', 'geral', {
+            qtd_sexta: Math.max(0, Math.min(99, Number(v.qtd_sexta) || 0)),
+            msg_cafe: v.msg_cafe.replace(/\r\n/g, '\n').trim(),
+            produtos_lanche: R.listaProdutos(v.produtos_lanche.replace(/\r\n/g, '\n')).join('\n'),
+        });
+        return 'Configuração da sexta-feira salva.';
+    },
+
     'dia-trocar': async v => {
         const hoje = R.hoje();
         const { data, militar_id: novo } = v;
@@ -750,6 +856,11 @@ const FORMS = {
     },
 
     'dia-corrigir': async (v, form) => FORMS['dia-trocar']({ data: form.dataset.data, militar_id: v.militar_id }),
+
+    'lanche-adicionar': async (v, form) => {
+        await F.adicionarItemLanche(form.dataset.data, 'i' + Date.now(), v.produto.trim());
+        return `“${v.produto.trim()}” incluído na lista.`;
+    },
 };
 
 const MUDANCAS = {

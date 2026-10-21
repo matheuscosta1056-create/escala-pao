@@ -28,7 +28,12 @@ export const STATUS = {
     trouxe: 'Trouxe',
     faltou: 'Não trouxe',
     sem_pao: 'Sem pão no dia',
+    cafe: 'Café da seção',
 };
+
+// Dias em que ninguém traz pão e a folga de ninguém conta
+const SEM_ESCALADO = ['sem_pao', 'cafe'];
+export const eSexta = d => diaDaSemana(d) === 5;
 
 // ---------- Datas (sempre texto AAAA-MM-DD, fuso de Brasília) ----------
 
@@ -148,7 +153,7 @@ export function simular(dados, ate, foto = hoje()) {
     const designadoAte = {};
     for (const d of regDatas) {
         const r = dados.registros[d];
-        if (r.fixo && r.militar_id && r.status !== 'sem_pao') designadoAte[r.militar_id] = d;
+        if (r.fixo && r.militar_id && !SEM_ESCALADO.includes(r.status)) designadoAte[r.militar_id] = d;
     }
 
     let est = {}; // id → {folga, ultimo}; a ordem das chaves segue a lista ordenada
@@ -168,8 +173,8 @@ export function simular(dados, ate, foto = hoje()) {
 
         if (!eDiaUtil(d, dados.feriados)) continue;
         const reg = dados.registros[d];
-        if (reg && reg.status === 'sem_pao') {
-            res.dias[d] = { militar_id: null, status: 'sem_pao', fixo: true, origem: 'registro', folga: null, obs: reg.obs || '' };
+        if (reg && SEM_ESCALADO.includes(reg.status)) {
+            res.dias[d] = { militar_id: null, status: reg.status, fixo: true, origem: 'registro', folga: null, obs: reg.obs || '' };
             continue;
         }
 
@@ -223,7 +228,7 @@ export function pendentesParaGravar(dados, dia = hoje()) {
 }
 
 // Resumo sem telefones para a página pública: dias úteis de N semanas a partir da segunda-feira desta semana
-export function resumoPublico(dados, dia = hoje(), semanas = 6) {
+export function resumoPublico(dados, dia = hoje(), semanas = 6, qtdSexta = 0) {
     const inicio = addDias(dia, 1 - (diaDaSemana(dia) || 7));
     const fim = addDias(inicio, semanas * 7 - 1);
     const sim = simular(dados, fim, dia);
@@ -236,6 +241,8 @@ export function resumoPublico(dados, dia = hoje(), semanas = 6) {
         if (dados.feriados[d]) dias.push({ data: d, feriado: dados.feriados[d] });
         else if (!x) dias.push({ data: d });
         else if (x.status === 'sem_pao') dias.push({ data: d, sem_pao: true });
+        else if (x.status === 'cafe') dias.push({ data: d, cafe: true });
+        else if (w === 5 && qtdSexta > 0) dias.push({ data: d, militar: nome(porId[x.militar_id]), status: x.status, qtd: qtdSexta });
         else dias.push({ data: d, militar: nome(porId[x.militar_id]), status: x.status });
     }
     return dias;
@@ -255,12 +262,32 @@ export function linkWhats(tel, msg) {
     return 'https://wa.me/' + telefoneWhats(tel) + '?text=' + encodeURIComponent(msg);
 }
 
-export function mensagem(modelo, militar, d) {
-    return modelo
+// Na sexta de pão, avisa a quantidade ({qtd} no texto, ou uma linha no final)
+export function mensagem(modelo, militar, d, qtdSexta = 0) {
+    let texto = modelo
         .replaceAll('{posto}', militar?.posto || '')
         .replaceAll('{nome}', militar?.nome || '')
         .replaceAll('{data}', dataBr(d))
         .replaceAll('{dia_semana}', nomeDiaSemana(d));
+    if (eSexta(d) && qtdSexta > 0) {
+        texto = texto.includes('{qtd}') ? texto.replaceAll('{qtd}', qtdSexta) : texto + `\n🥖 Sexta-feira: são ${qtdSexta} pães.`;
+    }
+    return texto.replaceAll('{qtd}', '');
+}
+
+// ---------- Café de sexta (lista do lanche) ----------
+
+export const listaProdutos = texto => String(texto || '').split('\n').map(p => p.trim()).filter(Boolean);
+
+// Itens na ordem em que foram cadastrados: [{id, produto, nome}]
+export function itensLanche(lanche, escolhas = {}) {
+    return Object.entries(lanche?.itens || {}).sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, produto]) => ({ id, produto, nome: escolhas[id]?.nome || '' }));
+}
+
+export function textoLanche(modelo, d, itens, link = '') {
+    const lista = itens.map(i => `• ${i.produto} — ${i.nome || '_(livre)_'}`).join('\n');
+    return modelo.replaceAll('{data}', diaCurto(d)).replaceAll('{lista}', lista).replaceAll('{link}', link);
 }
 
 export const MENSAGENS_PADRAO = {
@@ -268,4 +295,7 @@ export const MENSAGENS_PADRAO = {
     msg_dia: 'Bom dia, {posto} {nome}! 🥖\nLembrete: hoje ({dia_semana}, {data}) é o seu dia de trazer o pão.\nObrigado!',
     msg_vespera: 'Boa tarde, {posto} {nome}! 🥖\nLembrete: amanhã ({dia_semana}, {data}) é o seu dia de trazer o pão.',
     msg_grupo: '🥖 *Escala do Pão* — {periodo}\n\n{lista}',
+    msg_cafe: '☕ *Café da seção — {data}*\n\n{lista}\n\nEscolha o seu item: {link}',
+    qtd_sexta: 10,
+    produtos_lanche: 'Pão\nManteiga / margarina\nQueijo\nPresunto\nBolo\nSuco\nLeite\nCafé\nFrutas\nBiscoitos',
 };
