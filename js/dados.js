@@ -7,7 +7,7 @@ import {
 import {
     getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js?v=2';
 
 export const configurado = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLE_AQUI';
 

@@ -1,5 +1,5 @@
-import * as R from './regras.js';
-import * as F from './dados.js';
+import * as R from './regras.js?v=2';
+import * as F from './dados.js?v=2';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -828,6 +828,7 @@ window.addEventListener('hashchange', () => D && render());
 
 if (!F.configurado) {
     $nav.hidden = true;
+    document.body.classList.remove('carregando');
     $main.innerHTML = `<section class="card vazio"><div class="emoji-grande">⚙️</div><h2>Falta configurar o Firebase</h2>
         <p class="muted">Cole a configuração do app Web em <code>js/firebase-config.js</code>.</p></section>`;
 } else {
