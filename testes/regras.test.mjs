@@ -1,7 +1,7 @@
 // Rodar: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido } from '../js/regras.js';
+import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico } from '../js/regras.js';
 
 const NOMES = ['Silva', 'Souza', 'Costa', 'Lima', 'Pereira', 'Almeida', 'Rocha', 'Gomes', 'Ribeiro', 'Martins', 'Carvalho', 'Araujo', 'Melo', 'Barbosa', 'Teixeira'];
 const HOJE = '2026-10-20';
@@ -110,6 +110,18 @@ test('feriados nacionais calculados (datas móveis)', () => {
     const comExpediente = feriados(2026, 2026, ['2026-02-16'], { '2026-03-19': 'Aniversário da cidade' });
     assert.ok(!('2026-02-16' in comExpediente));
     assert.equal(comExpediente['2026-03-19'], 'Aniversário da cidade');
+});
+
+test('resumo público: semanas inteiras, feriados e sem telefone', () => {
+    const dados = cenario();
+    const dias = resumoPublico(dados, HOJE, 6);
+    assert.equal(dias[0].data, '2026-10-19', 'começa na segunda-feira da semana');
+    assert.equal(dias.length, 30, '6 semanas de seg a sex');
+    assert.deepEqual(dias.find(d => d.data === '2026-10-20'), { data: '2026-10-20', militar: '3º Sgt Almeida', status: 'previsto' });
+    assert.deepEqual(dias.find(d => d.data === '2026-11-02'), { data: '2026-11-02', feriado: 'Finados' });
+    assert.ok(!JSON.stringify(dias).includes('telefone'));
+    const sabado = resumoPublico(dados, '2026-10-24', 1);
+    assert.equal(sabado[0].data, '2026-10-19', 'no sábado ainda mostra a semana corrente');
 });
 
 test('link do WhatsApp', () => {

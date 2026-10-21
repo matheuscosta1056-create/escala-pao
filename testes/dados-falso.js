@@ -65,6 +65,13 @@ export async function apagar(col, id) {
     delete store[col][id];
     persistir();
 }
+let publico = JSON.parse(sessionStorage.getItem('demo-publico') || 'null');
+export async function lerPublico() { return publico; }
+export async function salvarPublico(dados) {
+    publico = structuredClone(dados);
+    sessionStorage.setItem('demo-publico', JSON.stringify(publico));
+}
+
 export async function emLote(ops) {
     for (const [tipo, col, id, dados] of ops) {
         if (tipo === 'del') delete store[col][id];

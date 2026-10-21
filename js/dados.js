@@ -5,9 +5,9 @@ import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-    getFirestore, collection, getDocs, doc, setDoc, deleteDoc, addDoc, writeBatch,
+    getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, addDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=2';
+import { firebaseConfig } from './firebase-config.js?v=3';
 
 export const configurado = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLE_AQUI';
 
@@ -34,6 +34,17 @@ export async function carregarTudo() {
     }));
     return res;
 }
+
+// Resumo da página pública (publico/escala). undefined = sem permissão para ler.
+export async function lerPublico() {
+    try {
+        const snap = await getDoc(doc(db, 'publico', 'escala'));
+        return snap.exists() ? snap.data() : null;
+    } catch {
+        return undefined;
+    }
+}
+export const salvarPublico = dados => setDoc(doc(db, 'publico', 'escala'), dados);
 
 // ---------- Escrita ----------
 

@@ -11,6 +11,12 @@ service cloud.firestore {
         ];
     }
 
+    // Resumo da página pública (só posto, nome e datas): qualquer um lê, só o administrador grava
+    match /publico/{id} {
+      allow read: if true;
+      allow write: if autorizado();
+    }
+
     match /{colecao}/{id} {
       allow read, write: if autorizado()
         && colecao in ['militares', 'afastamentos', 'escala', 'avisos', 'feriados_extras', 'feriados_ignorados', 'config'];

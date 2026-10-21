@@ -222,6 +222,25 @@ export function pendentesParaGravar(dados, dia = hoje()) {
     return lista;
 }
 
+// Resumo sem telefones para a página pública: dias úteis de N semanas a partir da segunda-feira desta semana
+export function resumoPublico(dados, dia = hoje(), semanas = 6) {
+    const inicio = addDias(dia, 1 - (diaDaSemana(dia) || 7));
+    const fim = addDias(inicio, semanas * 7 - 1);
+    const sim = simular(dados, fim, dia);
+    const porId = Object.fromEntries(dados.militares.map(m => [m.id, m]));
+    const dias = [];
+    for (let d = inicio; d <= fim; d = addDias(d, 1)) {
+        const w = diaDaSemana(d);
+        if (w === 0 || w === 6) continue;
+        const x = sim.dias[d];
+        if (dados.feriados[d]) dias.push({ data: d, feriado: dados.feriados[d] });
+        else if (!x) dias.push({ data: d });
+        else if (x.status === 'sem_pao') dias.push({ data: d, sem_pao: true });
+        else dias.push({ data: d, militar: nome(porId[x.militar_id]), status: x.status });
+    }
+    return dias;
+}
+
 // ---------- WhatsApp ----------
 
 export function telefoneWhats(tel) {

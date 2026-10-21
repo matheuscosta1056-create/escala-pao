@@ -192,3 +192,35 @@ select.st-sem_pao{background:#eee}
 body.ocupado{cursor:progress}body.ocupado main{opacity:.6;pointer-events:none;transition:opacity .2s}
 body.carregando main::before{content:'Carregando…';display:block;text-align:center;color:var(--muted);padding:60px 0}
 .topo a.sair{opacity:.7}
+
+/* Página pública */
+.pub-semana{display:flex;flex-direction:column;gap:8px}
+.pub-dia{display:flex;align-items:center;gap:12px;border:1px solid var(--borda);border-radius:14px;padding:10px 14px;background:#fff}
+.pub-dia.hoje{border:2px solid var(--verde2);background:var(--verde-claro)}
+.pub-dia.passado{opacity:.55}
+.pub-dia.feriado{background:#f6f2e8;border-style:dashed}
+.pub-data{min-width:52px;text-align:center}.pub-data b{display:block}.pub-data small{color:var(--muted);font-size:12px}
+.pub-icone{width:36px;text-align:center;font-size:22px;flex:none}
+.pub-nome{flex:1;font-weight:600;font-size:16px}
+.pub-dia.vazio .pub-nome{color:var(--muted);font-weight:400}
+.pub-ok{color:var(--verde2);font-weight:800;font-size:18px}
+.publico .hero h1{margin-top:8px}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* Impressão: só a folha da semana */
+.impressao{display:none}
+@page{size:A4 portrait;margin:16mm}
+@media print{
+  body{background:#fff}
+  body>*:not(.impressao){display:none!important}
+  .impressao{display:block;color:#000;font-family:Arial,Helvetica,sans-serif}
+  .impressao h1{font-size:28pt;margin:0 0 4pt;text-align:center}
+  .impressao h2{font-size:15pt;font-weight:normal;margin:0 0 18pt;text-align:center}
+  .impressao table{width:100%;border-collapse:collapse;font-size:15pt}
+  .impressao th{background:#1f4d35!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:9pt;text-align:left;border:1px solid #1f4d35}
+  .impressao td{border:1px solid #888;padding:15pt 9pt}
+  .impressao td:nth-child(3){font-weight:bold;font-size:17pt}
+  .impressao td:last-child{width:22%}
+  .impressao tr.feriado td{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-weight:normal;font-style:italic}
+  .rodape-impressao{margin-top:14pt;font-size:9pt;color:#666;text-align:right}
+}

@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=2';
-import * as F from './dados.js?v=2';
+import * as R from './regras.js?v=3';
+import * as F from './dados.js?v=3';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -87,11 +87,24 @@ async function invalidarHoje() {
     if (r && r.status === 'previsto' && !r.fixo && !avisado) await F.apagar('escala', hoje);
 }
 
+// Atualiza o resumo da página pública (só nomes e datas) quando a escala muda
+async function publicar() {
+    const canonico = v => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
+    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra()) };
+    const atual = await F.lerPublico();
+    if (atual === undefined) return console.warn('Página pública: sem permissão nas regras do Firestore.');
+    if (atual && canonico({ titulo: atual.titulo, dias: atual.dias }) === canonico(novo)) return;
+    await F.salvarPublico({ ...novo, atualizado_em: agora() });
+}
+
 async function atualizar() {
     await recarregar();
     await consolidar();
     render();
+    publicar().catch(e => console.warn('Página pública não atualizada:', e.message));
 }
+
+const linkPublico = () => new URL('ver.html', location.href.split('#')[0]).href;
 
 // ---------- Telas ----------
 
@@ -140,9 +153,10 @@ function telaHoje() {
         if (!x) return null;
         return `${R.diaCurto(d)} — ${x.status === 'sem_pao' ? 'sem pão' : R.nome(D.porId[x.militar_id])}`;
     }).filter(Boolean);
-    const msgGrupo = D.cfg.msg_grupo
+    let msgGrupo = D.cfg.msg_grupo
         .replaceAll('{periodo}', R.diaMes(semanas[0][0]) + ' a ' + R.diaMes(semanas[0][4]))
         .replaceAll('{lista}', linhas.join('\n'));
+    msgGrupo = msgGrupo.includes('{link}') ? msgGrupo.replaceAll('{link}', linkPublico()) : msgGrupo + '\n\n📅 Escala completa: ' + linkPublico();
 
     // Hero
     let hero;
@@ -227,6 +241,14 @@ function telaHoje() {
         <div class="acoes">
             <button class="btn claro" data-acao="copiar" data-texto="${h(msgGrupo)}">📋 Copiar</button>
             <a class="btn whats" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msgGrupo)}">📲 Enviar no grupo</a>
+        </div>
+    </section>
+    <section class="card grupo">
+        <div><h3>Página pública e impressão</h3><p class="muted">Qualquer pessoa com o link vê a escala (só posto e nome, sem telefones).</p></div>
+        <div class="acoes">
+            <a class="btn verde" target="_blank" rel="noopener" href="ver.html?imprimir=1">🖨 Imprimir semana</a>
+            <a class="btn claro" target="_blank" rel="noopener" href="ver.html">👀 Página pública</a>
+            <button class="btn claro" data-acao="copiar" data-texto="${h(linkPublico())}">🔗 Copiar link</button>
         </div>
     </section>
 
@@ -449,7 +471,7 @@ function telaAjustes() {
                 <label>Escala da semana (grupo) <textarea name="msg_grupo" rows="4">${h(D.cfg.msg_grupo)}</textarea></label>
                 <label>Nome do sistema <input name="titulo" value="${h(D.cfg.titulo)}" maxlength="60"></label>
             </div>
-            <p class="dica">Campos automáticos: <code>{posto}</code> <code>{nome}</code> <code>{data}</code> <code>{dia_semana}</code> · no grupo: <code>{periodo}</code> <code>{lista}</code> · *texto* fica em negrito no WhatsApp.</p>
+            <p class="dica">Campos automáticos: <code>{posto}</code> <code>{nome}</code> <code>{data}</code> <code>{dia_semana}</code> · no grupo: <code>{periodo}</code> <code>{lista}</code> <code>{link}</code> (link da página pública; se não usar, ele vai no final) · *texto* fica em negrito no WhatsApp.</p>
             <button class="btn verde">Salvar mensagens</button>
         </form>
     </section>
