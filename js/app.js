@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=5';
-import * as F from './dados.js?v=5';
+import * as R from './regras.js?v=7';
+import * as F from './dados.js?v=7';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -44,7 +44,7 @@ async function recarregar() {
     const hoje = R.hoje();
     const cfg = Object.assign({}, R.MENSAGENS_PADRAO, raw.config.find(c => c.id === 'geral') || {});
     const militares = R.ordenarMilitares(raw.militares.map(m => ({ ...m, ordem: Number(m.ordem) || 0, folga_inicial: Number(m.folga_inicial) || 0 })));
-    const registros = Object.fromEntries(raw.escala.map(r => [r.id, r]));
+    const registros = Object.fromEntries(raw.escala.filter(r => /^\d{4}-\d{2}-\d{2}$/.test(r.id)).map(r => [r.id, r]));
     const extras = Object.fromEntries(raw.feriados_extras.map(f => [f.id, f.descricao]));
     const ignorados = raw.feriados_ignorados.map(f => f.id);
     let anoIni = Number(hoje.slice(0, 4));
@@ -336,6 +336,22 @@ function telaHoje() {
             <button class="btn claro" data-acao="sexta-cafe" data-data="" id="dlg-cafe">☕ Café da seção nesta sexta</button>
             <button class="btn claro" data-acao="sexta-pao" data-data="" id="dlg-pao" data-confirm="Voltar a ser dia de pão? A lista do lanche desta sexta será apagada.">🥖 Voltar a ser dia de pão</button>
         </div>
+    </dialog>
+
+    <dialog id="dlg-lanche">
+        <button class="dlg-fechar" data-acao="fechar">✕</button>
+        <h3 id="lanche-titulo">Quem vai levar?</h3>
+        <form data-form="lanche-nome" class="dlg-bloco">
+            <input type="hidden" name="data"><input type="hidden" name="id"><input type="hidden" name="produto">
+            <label>Participante
+                <select name="nome" required>
+                    <option value="">Selecione…</option>
+                    ${D.participantes.map(n => `<option>${h(n)}</option>`).join('')}
+                </select>
+            </label>
+            <p class="dica">Falta alguém? Inclua em ⚙️ Ajustes → Sexta-feira → Participantes do café.</p>
+            <button class="btn verde">Confirmar</button>
+        </form>
     </dialog>`;
 }
 
@@ -758,6 +774,7 @@ const ACOES = {
 
     // Café de sexta
     'sexta-cafe': async ds => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ds.data || '')) return null;
         await F.salvar('escala', ds.data, { militar_id: null, status: 'cafe', fixo: true, obs: D.registros[ds.data]?.obs || '' });
         if (!D.lanches[ds.data]) {
             const itens = Object.fromEntries(R.listaProdutos(D.cfg.produtos_lanche).map((p, i) => ['i' + String(i + 1).padStart(3, '0'), p]));
@@ -770,11 +787,15 @@ const ACOES = {
         if (D.lanches[ds.data]) await F.apagarLanche(ds.data);
         return `${R.diaCurto(ds.data)} voltou a ser dia de pão${D.qtdSexta ? ` (${D.qtdSexta} pães)` : ''}.`;
     },
-    'lanche-definir': async ds => {
-        const nome = prompt(`Quem vai levar “${ds.produto}”?`, ds.nome || '');
-        if (nome === null || !nome.trim()) return null;
-        await F.definirEscolha(ds.data, ds.id, nome.trim());
-        return `${ds.produto}: ${nome.trim()}.`;
+    'lanche-definir': ds => {
+        const dlg = document.getElementById('dlg-lanche');
+        const f = dlg.querySelector('form');
+        f.data.value = ds.data;
+        f.id.value = ds.id;
+        f.produto.value = ds.produto;
+        f.nome.value = D.participantes.includes(ds.nome) ? ds.nome : '';
+        dlg.querySelector('#lanche-titulo').textContent = `Quem vai levar “${ds.produto}”?`;
+        dlg.showModal();
     },
     'lanche-limpar': async ds => {
         await F.definirEscolha(ds.data, ds.id, '');
@@ -880,6 +901,11 @@ const FORMS = {
     },
 
     'dia-corrigir': async (v, form) => FORMS['dia-trocar']({ data: form.dataset.data, militar_id: v.militar_id }),
+
+    'lanche-nome': async v => {
+        await F.definirEscolha(v.data, v.id, v.nome);
+        return `${v.produto}: ${v.nome}.`;
+    },
 
     'lanche-adicionar': async (v, form) => {
         await F.adicionarItemLanche(form.dataset.data, 'i' + Date.now(), v.produto.trim());
