@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=8';
-import * as F from './dados.js?v=8';
+import * as R from './regras.js?v=9';
+import * as F from './dados.js?v=9';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -195,6 +195,9 @@ function telaHoje() {
     })).sort((a, b) => (a.proxima || '9999').localeCompare(b.proxima || '9999') || a.m.ordem - b.m.ordem);
     const maxFolga = Math.max(1, D.ativos.length - 1, ...fila.map(f => f.folga));
 
+    // Troca pontual: sugere o próximo da fila depois daquele dia (com "permutar", ele assume o dia e o outro fica com o dele)
+    const sugestaoPara = d => futuros.find(([x, info]) => x > d && info.militar_id && info.militar_id !== sim.dias[d]?.militar_id)?.[1].militar_id || '';
+
     // Calendário de duas semanas (no fim de semana, começa na próxima segunda)
     const w = R.diaDaSemana(hoje) || 7;
     const seg = w >= 6 ? R.addDias(hoje, 8 - w) : R.addDias(hoje, 1 - w);
@@ -247,7 +250,7 @@ function telaHoje() {
             <div class="hero-acoes">
                 ${[['trouxe', '✔ Trouxe'], ['faltou', '✘ Não trouxe']].map(([s, rot]) =>
                     `<button class="btn pilula ${st === s ? 'marcado' : ''}" data-acao="dia-status" data-data="${hoje}" data-status="${st === s ? 'previsto' : s}">${rot}</button>`).join('')}
-                <button class="btn pilula" data-acao="abrir-dia" data-data="${hoje}" data-rotulo="Hoje" data-militar="${h(mHoje.id)}" data-fixo="${diaHoje.fixo ? 1 : 0}" data-status="${st}">🔁 Trocar</button>
+                <button class="btn pilula" data-acao="abrir-dia" data-data="${hoje}" data-rotulo="Hoje" data-militar="${h(mHoje.id)}" data-fixo="${diaHoje.fixo ? 1 : 0}" data-status="${st}" data-sugestao="${h(sugestaoPara(hoje))}">🔁 Trocar</button>
             </div>
         </section>`;
     }
@@ -277,7 +280,7 @@ function telaHoje() {
             const qtd = R.eSexta(d) && D.qtdSexta ? `<span class="cal-qtd">${D.qtdSexta} pães</span>` : '';
             corpo = `${avatar(m)}<div class="cal-nome">${h(m.nome)}</div>${qtd}${selo}`;
         } else corpo = '<div class="cal-nome muted">—</div>';
-        const attrs = clicavel ? `data-acao="abrir-dia" data-data="${d}" data-rotulo="${R.diaCurto(d)}" data-militar="${h(x.militar_id || '')}" data-fixo="${x.fixo ? 1 : 0}" data-status="${x.status}"` : '';
+        const attrs = clicavel ? `data-acao="abrir-dia" data-data="${d}" data-rotulo="${R.diaCurto(d)}" data-militar="${h(x.militar_id || '')}" data-fixo="${x.fixo ? 1 : 0}" data-status="${x.status}" data-sugestao="${h(sugestaoPara(d))}"` : '';
         return `<div class="${cls}${clicavel ? ' clicavel' : ''}" ${attrs}><div class="cal-num">${R.diaMes(d)}</div>${corpo}</div>`;
     }).join('');
 
@@ -325,9 +328,10 @@ function telaHoje() {
         <form data-form="dia-trocar" class="dlg-bloco">
             <input type="hidden" name="data">
             <label>Quem vai trazer?
-                <select name="militar_id" required>${D.ativos.map(m => `<option value="${h(m.id)}">${h(R.nome(m))}</option>`).join('')}</select>
+                <select name="militar_id" required>${fila.map(f => `<option value="${h(f.m.id)}" data-nome="${h(R.nome(f.m))}">${h(R.nome(f.m))}</option>`).join('')}</select>
             </label>
-            <label class="check"><input type="checkbox" name="permutar" value="1" checked> Permutar (quem sai fica com o dia de quem entra)</label>
+            <label class="check"><input type="checkbox" name="permutar" value="1" checked> Permutar: quem não pode fica com o dia de quem entra</label>
+            <p class="dica" style="margin:0">A lista já vem com o <b>próximo da fila</b> (★). Pode escolher outro se precisar.</p>
             <button class="btn verde">Confirmar troca</button>
         </form>
         <div class="dlg-rodape">
@@ -650,7 +654,10 @@ const ACOES = {
         dlg.querySelectorAll('.dlg-rodape [data-data]').forEach(b => b.dataset.data = ds.data);
         const sel = dlg.querySelector('[name=militar_id]');
         [...sel.options].forEach(o => o.disabled = o.value === ds.militar);
-        sel.value = [...sel.options].find(o => !o.disabled)?.value ?? '';
+        // Pré-seleciona o próximo da fila e marca na lista
+        [...sel.options].forEach(o => o.textContent = o.dataset.nome + (o.value === ds.sugestao ? '  ★ próximo da fila' : ''));
+        const sugerida = [...sel.options].find(o => o.value === ds.sugestao && !o.disabled);
+        sel.value = (sugerida || [...sel.options].find(o => !o.disabled))?.value ?? '';
         const cafe = ds.status === 'cafe';
         dlg.querySelector('#dlg-auto').hidden = ds.fixo !== '1' || cafe;
         dlg.querySelector('#dlg-cafe').hidden = !R.eSexta(ds.data) || cafe;

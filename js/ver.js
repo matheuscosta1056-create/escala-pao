@@ -1,7 +1,7 @@
 // Página pública: quem traz o pão hoje, escala da semana, lista do café de sexta e impressão
 
-import * as R from './regras.js?v=8';
-import { lerEscalaPublica, lerLanche, escolherItem, incluirExtra } from './dados-publico.js?v=8';
+import * as R from './regras.js?v=9';
+import { lerEscalaPublica, lerLanche, escolherItem, incluirExtra } from './dados-publico.js?v=9';
 
 const $main = document.getElementById('conteudo');
 const $impressao = document.getElementById('impressao');
