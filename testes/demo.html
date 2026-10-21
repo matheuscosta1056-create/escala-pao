@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Escala do Pão (demonstração)</title>
+    <link rel="stylesheet" href="../estilo.css">
+    <!-- Troca o Firebase pelo banco falso em memória -->
+    <script type="importmap">{ "imports": { "../js/dados.js": "./dados-falso.js" } }</script>
+</head>
+<body class="carregando">
+<header class="topo">
+    <div class="marca">🥖 <span id="marca-titulo">Escala do Pão</span> <small style="opacity:.7">· demonstração</small></div>
+    <nav id="menu" hidden>
+        <a href="#hoje">🏠 Hoje</a>
+        <a href="#militares">👥 Militares</a>
+        <a href="#historico">📅 Histórico</a>
+        <a href="#ajustes">⚙️ Ajustes</a>
+    </nav>
+</header>
+<main id="conteudo"></main>
+<div id="toast" class="toast" role="status"></div>
+<script type="module" src="../js/app.js"></script>
+</body>
+</html>

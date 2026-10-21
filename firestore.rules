@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Só os e-mails da lista podem ler e alterar a escala.
+// Para liberar outra pessoa: crie o usuário em Authentication e acrescente o e-mail aqui.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autorizado() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'COLOQUE_SEU_EMAIL_AQUI'
+        ];
+    }
+
+    match /{colecao}/{id} {
+      allow read, write: if autorizado()
+        && colecao in ['militares', 'afastamentos', 'escala', 'avisos', 'feriados_extras', 'feriados_ignorados', 'config'];
+    }
+  }
+}
