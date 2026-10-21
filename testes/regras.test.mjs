@@ -137,6 +137,17 @@ test('sexta de café: ninguém traz e a folga não conta', () => {
     assert.deepEqual(resumoPublico(dados, HOJE, 1, 10).find(d => d.data === sexta), { data: sexta, cafe: true });
 });
 
+test('café em outro dia (quarta): mesma regra da sexta', () => {
+    const dados = cenario();
+    const quarta = '2026-10-28';
+    const antes = simular(dados, '2027-01-01', HOJE).dias;
+    dados.registros[quarta] = { militar_id: null, status: 'cafe', fixo: true, obs: '' };
+    const sim = simular(dados, '2027-01-01', HOJE);
+    assert.equal(sim.dias[quarta].status, 'cafe');
+    assert.equal(sim.dias['2026-10-29'].militar_id, antes[quarta].militar_id, 'quem seria da quarta passa para quinta');
+    assert.deepEqual(resumoPublico(dados, HOJE, 2, 10).find(d => d.data === quarta), { data: quarta, cafe: true });
+});
+
 test('sexta de pão: resumo e lembrete levam a quantidade', () => {
     const dados = cenario();
     const sexta = resumoPublico(dados, HOJE, 1, 10).find(d => d.data === '2026-10-23');

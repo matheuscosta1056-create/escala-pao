@@ -2,7 +2,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=9';
+import { firebaseConfig } from './firebase-config.js?v=10';
 
 const db = getFirestore(initializeApp(firebaseConfig));
 

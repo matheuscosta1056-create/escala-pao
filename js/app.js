@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=9';
-import * as F from './dados.js?v=9';
+import * as R from './regras.js?v=10';
+import * as F from './dados.js?v=10';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -148,7 +148,7 @@ function cartoesCafe(datas) {
             <span class="lanche-acoes">
                 ${i.extra ? '' : `<button class="link" data-acao="lanche-definir" data-data="${d}" data-id="${h(i.id)}" data-produto="${h(i.produto)}" data-nome="${h(i.nome)}">${i.nome ? 'trocar' : 'pôr nome'}</button>`}
                 ${i.nome && !i.extra ? `<button class="link" data-acao="lanche-limpar" data-data="${d}" data-id="${h(i.id)}">liberar</button>` : ''}
-                <button class="link perigo" data-acao="lanche-remover" data-data="${d}" data-id="${h(i.id)}" data-confirm="Tirar “${h(i.produto)}” da lista desta sexta?" title="Tirar da lista">✕</button>
+                <button class="link perigo" data-acao="lanche-remover" data-data="${d}" data-id="${h(i.id)}" data-confirm="Tirar “${h(i.produto)}” da lista deste café?" title="Tirar da lista">✕</button>
             </span>
         </div>`).join('');
         return `<section class="card cafe-card">
@@ -165,7 +165,7 @@ function cartoesCafe(datas) {
             </div>
             ${faltam.length ? `<p class="faltam"><b>Ainda não escolheram (${faltam.length}):</b> ${faltam.map(h).join(', ')}</p>` : '<p class="faltam ok">✔ Todos os participantes já escolheram.</p>'}
             <p class="dica">Na página pública, cada um toca num item livre e escolhe o nome na lista. Só você pode trocar ou liberar. Participantes extras: ⚙️ Ajustes → Sexta-feira.</p>`
-            : `<p class="muted">A lista do lanche desta sexta ainda não foi criada.</p>
+            : `<p class="muted">A lista do lanche deste café ainda não foi criada.</p>
                <button class="btn verde" data-acao="sexta-cafe" data-data="${d}">Criar lista do lanche</button>`}
         </section>`;
     }).join('');
@@ -301,7 +301,7 @@ function telaHoje() {
     return `${hero}${amanha}
     <section class="card"><h3>Próximos dias</h3>
         <div class="calendario">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(s => `<div class="cal-cab">${s}</div>`).join('')}${calendario}</div>
-        <p class="dica">Toque num dia para trocar o militar, marcar “sem pão” ou, na sexta, marcar café da seção.</p>
+        <p class="dica">Toque num dia para trocar o militar, marcar “sem pão” ou marcar café da seção.</p>
     </section>
     ${cartaoProximaSexta(futuros)}
     ${cartoesCafe(semanas.flat().filter(d => d >= hoje && sim.dias[d]?.status === 'cafe'))}
@@ -337,8 +337,8 @@ function telaHoje() {
         <div class="dlg-rodape">
             <button class="btn claro" data-acao="dia-status" data-status="sem_pao" data-data="">🚫 Sem pão neste dia</button>
             <button class="btn claro" data-acao="dia-automatico" data-data="" id="dlg-auto">↩ Voltar ao automático</button>
-            <button class="btn claro" data-acao="sexta-cafe" data-data="" id="dlg-cafe">☕ Café da seção nesta sexta</button>
-            <button class="btn claro" data-acao="sexta-pao" data-data="" id="dlg-pao" data-confirm="Voltar a ser dia de pão? A lista do lanche desta sexta será apagada.">🥖 Voltar a ser dia de pão</button>
+            <button class="btn claro" data-acao="sexta-cafe" data-data="" id="dlg-cafe">☕ Café da seção neste dia</button>
+            <button class="btn claro" data-acao="sexta-pao" data-data="" id="dlg-pao" data-confirm="Voltar a ser dia de pão? A lista do lanche deste dia será apagada.">🥖 Voltar a ser dia de pão</button>
         </div>
     </dialog>
 
@@ -553,7 +553,7 @@ function telaAjustes() {
     </section>
 
     <section class="card"><h3>☕ Sexta-feira</h3>
-        <p class="muted">Toda sexta é de pão, com a quantidade abaixo. Para fazer café da seção, toque na sexta no calendário (tela Hoje) e escolha “Café da seção”.</p>
+        <p class="muted">Toda sexta é de pão, com a quantidade abaixo. Para fazer café da seção (na sexta ou em qualquer outro dia), toque no dia no calendário da tela Hoje e escolha “Café da seção neste dia”.</p>
         <form data-form="sexta-salvar">
             <div class="mensagens">
                 <label>Pães na sexta <input type="number" name="qtd_sexta" min="0" max="99" value="${h(D.qtdSexta)}"></label>
@@ -562,7 +562,7 @@ function telaAjustes() {
                 <label>Participantes do café que NÃO estão na escala do pão (posto e nome, um por linha)
                     <textarea name="participantes_cafe" rows="8" placeholder="Ex.:&#10;Cap Ribeiro&#10;1º Ten Andrade&#10;Sd Araújo">${h(D.cfg.participantes_cafe)}</textarea></label>
                 <p class="dica">Os ${D.ativos.length} militares da escala do pão já participam automaticamente. Total no café: <b>${D.participantes.length}</b>.</p>
-                <p class="dica">Os produtos entram em cada nova sexta de café; dá para tirar ou incluir itens só naquela semana. Na mensagem do café: <code>{data}</code> <code>{lista}</code> <code>{link}</code>.</p>
+                <p class="dica">Os produtos entram em cada novo café (na sexta ou em qualquer outro dia); dá para tirar ou incluir itens só naquele café. Na mensagem do café: <code>{data}</code> <code>{lista}</code> <code>{link}</code>.</p>
             </div>
             <button class="btn verde">Salvar sexta-feira</button>
         </form>
@@ -660,7 +660,7 @@ const ACOES = {
         sel.value = (sugerida || [...sel.options].find(o => !o.disabled))?.value ?? '';
         const cafe = ds.status === 'cafe';
         dlg.querySelector('#dlg-auto').hidden = ds.fixo !== '1' || cafe;
-        dlg.querySelector('#dlg-cafe').hidden = !R.eSexta(ds.data) || cafe;
+        dlg.querySelector('#dlg-cafe').hidden = cafe; // café pode ser em qualquer dia (atalho em destaque só na sexta)
         dlg.querySelector('#dlg-pao').hidden = !cafe;
         dlg.showModal();
     },
