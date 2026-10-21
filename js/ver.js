@@ -1,7 +1,7 @@
 // Página pública: quem traz o pão hoje, escala da semana, lista do café de sexta e impressão
 
-import * as R from './regras.js?v=4';
-import { lerEscalaPublica, lerLanche, escolherItem } from './dados-publico.js?v=4';
+import * as R from './regras.js?v=5';
+import { lerEscalaPublica, lerLanche, escolherItem } from './dados-publico.js?v=5';
 
 const $main = document.getElementById('conteudo');
 const $impressao = document.getElementById('impressao');
@@ -64,8 +64,17 @@ function cartaoLanche(dia) {
         let direita;
         if (i.nome) direita = `<span class="lanche-nome">✔ ${h(i.nome)}</span>`;
         else if (escolhendo === chave) {
-            direita = `<form class="lanche-escolher" data-data="${dia.data}" data-id="${h(i.id)}">
-                <input name="nome" placeholder="Posto e nome" maxlength="40" minlength="2" required value="${h(lembrarNome())}" autofocus>
+            const lista = pub.participantes || [];
+            const meu = lembrarNome();
+            const campo = lista.length
+                ? `<select name="nome" required>
+                       <option value="">Quem é você?</option>
+                       ${lista.map(n => `<option ${n === meu ? 'selected' : ''}>${h(n)}</option>`).join('')}
+                       <option value="__outro" ${meu && !lista.includes(meu) ? 'selected' : ''}>Outro nome…</option>
+                   </select>
+                   <input name="outro" placeholder="Posto e nome" maxlength="40" value="${meu && !lista.includes(meu) ? h(meu) : ''}" ${meu && !lista.includes(meu) ? '' : 'hidden'}>`
+                : `<input name="nome" placeholder="Posto e nome" maxlength="40" minlength="2" required value="${h(meu)}">`;
+            direita = `<form class="lanche-escolher" data-data="${dia.data}" data-id="${h(i.id)}">${campo}
                 <button class="btn verde">Confirmar</button>
             </form>`;
         } else direita = `<button class="btn claro" data-escolher="${chave}">Eu levo</button>`;
@@ -179,17 +188,27 @@ document.addEventListener('click', e => {
     if (escolher) {
         escolhendo = escolher.dataset.escolher;
         render();
-        document.querySelector('.lanche-escolher input')?.focus();
+        document.querySelector('.lanche-escolher select, .lanche-escolher input:not([hidden])')?.focus();
     }
     if (e.target.closest('#btn-imprimir')) window.print();
+});
+
+// "Outro nome…" abre o campo de texto
+document.addEventListener('change', e => {
+    if (e.target.name !== 'nome' || !e.target.closest('.lanche-escolher')) return;
+    const outro = e.target.form.outro;
+    outro.hidden = e.target.value !== '__outro';
+    outro.required = !outro.hidden;
+    if (!outro.hidden) outro.focus();
 });
 
 document.addEventListener('submit', async e => {
     const form = e.target.closest('.lanche-escolher');
     if (!form) return;
     e.preventDefault();
-    const nome = form.nome.value.trim().replace(/\s+/g, ' ');
-    if (nome.length < 2) return;
+    const valor = form.nome.value === '__outro' ? form.outro.value : form.nome.value;
+    const nome = valor.trim().replace(/\s+/g, ' ');
+    if (nome.length < 2) return aviso('Escreva seu posto e nome.', 'erro');
     form.querySelector('button').disabled = true;
     try {
         await escolherItem(form.dataset.data, form.dataset.id, nome);

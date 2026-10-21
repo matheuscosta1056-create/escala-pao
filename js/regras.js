@@ -285,6 +285,25 @@ export function itensLanche(lanche, escolhas = {}) {
         .map(([id, produto]) => ({ id, produto, nome: escolhas[id]?.nome || '' }));
 }
 
+const normalizar = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+// Participantes do café = militares da escala do pão + os cadastrados só para o café (sem repetir)
+export function participantesCafe(militares, extrasTexto) {
+    const vistos = new Set();
+    return [...militares.map(nome), ...listaProdutos(extrasTexto)].filter(n => {
+        const k = normalizar(n);
+        if (!k || vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+    });
+}
+
+// Quem ainda não pegou nenhum item da lista
+export function faltamEscolher(participantes, itens) {
+    const escolheram = new Set(itens.map(i => normalizar(i.nome)).filter(Boolean));
+    return participantes.filter(p => !escolheram.has(normalizar(p)));
+}
+
 export function textoLanche(modelo, d, itens, link = '') {
     const lista = itens.map(i => `• ${i.produto} — ${i.nome || '_(livre)_'}`).join('\n');
     return modelo.replaceAll('{data}', diaCurto(d)).replaceAll('{lista}', lista).replaceAll('{link}', link);
@@ -297,5 +316,6 @@ export const MENSAGENS_PADRAO = {
     msg_grupo: '🥖 *Escala do Pão* — {periodo}\n\n{lista}',
     msg_cafe: '☕ *Café da seção — {data}*\n\n{lista}\n\nEscolha o seu item: {link}',
     qtd_sexta: 10,
+    participantes_cafe: '',
     produtos_lanche: 'Pão\nManteiga / margarina\nQueijo\nPresunto\nBolo\nSuco\nLeite\nCafé\nFrutas\nBiscoitos',
 };

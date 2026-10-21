@@ -245,3 +245,6 @@ body.carregando main::before{content:'Carregando…';display:block;text-align:ce
   .impressao .tabela-cafe td{padding:9pt;font-size:13pt;font-weight:normal!important}
   .impressao .tabela-cafe td:last-child{width:50%}
 }
+.faltam{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#fff7e6;color:#7a4b00;font-size:14px;line-height:1.5}
+.faltam.ok{background:#f2faf4;color:var(--verde2)}
+.lanche-escolher select{padding:8px 10px;min-width:170px}

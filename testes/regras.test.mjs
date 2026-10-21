@@ -1,7 +1,7 @@
 // Rodar: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico, mensagem, listaProdutos, itensLanche, textoLanche } from '../js/regras.js';
+import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico, mensagem, listaProdutos, itensLanche, textoLanche, participantesCafe, faltamEscolher } from '../js/regras.js';
 
 const NOMES = ['Silva', 'Souza', 'Costa', 'Lima', 'Pereira', 'Almeida', 'Rocha', 'Gomes', 'Ribeiro', 'Martins', 'Carvalho', 'Araujo', 'Melo', 'Barbosa', 'Teixeira'];
 const HOJE = '2026-10-20';
@@ -154,6 +154,14 @@ test('lista do lanche', () => {
     assert.deepEqual(itens.map(i => i.produto), ['Pão', 'Suco', 'Bolo']);
     assert.equal(textoLanche('☕ {data}\n{lista}\n{link}', '2026-10-23', itens, 'http://x'),
         '☕ Sex 23/10\n• Pão — _(livre)_\n• Suco — Cb Novato\n• Bolo — _(livre)_\nhttp://x');
+});
+
+test('participantes do café: escala do pão + extras, sem repetir', () => {
+    const mil = [{ posto: 'S Ten', nome: 'Neto' }, { posto: '2º Sgt', nome: 'Matheus' }];
+    const p = participantesCafe(mil, 'Cap Ribeiro\n s ten  neto \n\nSd Araújo');
+    assert.deepEqual(p, ['S Ten Neto', '2º Sgt Matheus', 'Cap Ribeiro', 'Sd Araújo']);
+    const itens = [{ produto: 'Bolo', nome: 'sd araujo' }, { produto: 'Suco', nome: '' }];
+    assert.deepEqual(faltamEscolher(p, itens), ['S Ten Neto', '2º Sgt Matheus', 'Cap Ribeiro'], 'ignora acento e maiúscula');
 });
 
 test('link do WhatsApp', () => {

@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=4';
-import * as F from './dados.js?v=4';
+import * as R from './regras.js?v=5';
+import * as F from './dados.js?v=5';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -60,6 +60,7 @@ async function recarregar() {
         ativos: militares.filter(m => !m.data_desligamento || m.data_desligamento > hoje),
         feriados: R.feriados(anoIni, Number(hoje.slice(0, 4)) + 1, ignorados, extras),
     };
+    D.participantes = R.participantesCafe(D.ativos, cfg.participantes_cafe);
 }
 
 const dadosRegra = () => ({ militares: D.militares, afastamentos: D.afastamentos, feriados: D.feriados, registros: D.registros });
@@ -92,10 +93,10 @@ async function invalidarHoje() {
 // Atualiza o resumo da página pública (só nomes e datas) quando a escala muda
 async function publicar() {
     const canonico = v => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
-    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra(), R.hoje(), 6, D.qtdSexta) };
+    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra(), R.hoje(), 6, D.qtdSexta), participantes: D.participantes };
     const atual = await F.lerPublico();
     if (atual === undefined) return console.warn('Página pública: sem permissão nas regras do Firestore.');
-    if (atual && canonico({ titulo: atual.titulo, dias: atual.dias }) === canonico(novo)) return;
+    if (atual && canonico({ titulo: atual.titulo, dias: atual.dias, participantes: atual.participantes || [] }) === canonico(novo)) return;
     await F.salvarPublico({ ...novo, atualizado_em: agora() });
 }
 
@@ -119,12 +120,27 @@ function botaoWhats(m, data, tipo, modelo, rotulo) {
         data-aviso="${tipo}" data-data="${data}" data-militar="${h(m.id)}">${feito ? '✓ Avisado às ' + horaLocal(feito) + ' · reenviar' : '📲 ' + rotulo}</a>`;
 }
 
+// Próxima sexta ainda como dia de pão: atalho para virar café
+function cartaoProximaSexta(futuros) {
+    const sexta = futuros.find(([d]) => R.eSexta(d));
+    if (!sexta || sexta[1].status === 'cafe') return '';
+    const [d, x] = sexta;
+    const m = D.porId[x.militar_id];
+    return `<section class="card grupo cafe-card">
+        <div><h3>☕ Próxima sexta — ${R.diaCurto(d)}</h3>
+            <p class="muted">Está como <b>dia de pão</b>${m ? `: ${h(R.nome(m))} traz${D.qtdSexta ? ` ${D.qtdSexta} pães` : ''}` : ''}.
+            Se for ter café da seção, troque aqui e a lista do lanche abre na página pública.</p></div>
+        <div class="acoes"><button class="btn verde" data-acao="sexta-cafe" data-data="${d}">☕ Fazer café nesta sexta</button></div>
+    </section>`;
+}
+
 // Cartão de cada sexta de café com a lista do lanche
 function cartoesCafe(datas) {
     return datas.map(d => {
         const lanche = D.lanches[d];
         const itens = R.itensLanche(lanche, lanche?.escolhas);
         const escolhidos = itens.filter(i => i.nome).length;
+        const faltam = R.faltamEscolher(D.participantes, itens);
         const texto = R.textoLanche(D.cfg.msg_cafe, d, itens, linkPublico());
         const lista = itens.map(i => `<div class="lanche-item ${i.nome ? 'ok' : ''}">
             <span class="lanche-produto">${h(i.produto)}</span>
@@ -147,7 +163,8 @@ function cartoesCafe(datas) {
                 <a class="btn whats" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">📲 Enviar lista no grupo</a>
                 <button class="btn claro" data-acao="copiar" data-texto="${h(texto)}">📋 Copiar</button>
             </div>
-            <p class="dica">Na página pública, cada um toca num item livre e coloca o nome (inclusive quem não está na escala do pão). Só você pode trocar ou liberar.</p>`
+            ${faltam.length ? `<p class="faltam"><b>Ainda não escolheram (${faltam.length}):</b> ${faltam.map(h).join(', ')}</p>` : '<p class="faltam ok">✔ Todos os participantes já escolheram.</p>'}
+            <p class="dica">Na página pública, cada um toca num item livre e escolhe o nome na lista. Só você pode trocar ou liberar. Participantes extras: ⚙️ Ajustes → Sexta-feira.</p>`
             : `<p class="muted">A lista do lanche desta sexta ainda não foi criada.</p>
                <button class="btn verde" data-acao="sexta-cafe" data-data="${d}">Criar lista do lanche</button>`}
         </section>`;
@@ -283,6 +300,7 @@ function telaHoje() {
         <div class="calendario">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(s => `<div class="cal-cab">${s}</div>`).join('')}${calendario}</div>
         <p class="dica">Toque num dia para trocar o militar, marcar “sem pão” ou, na sexta, marcar café da seção.</p>
     </section>
+    ${cartaoProximaSexta(futuros)}
     ${cartoesCafe(semanas.flat().filter(d => d >= hoje && sim.dias[d]?.status === 'cafe'))}
     <section class="card"><h3>Fila</h3><div class="fila">${filaHtml}</div></section>
     <section class="card grupo">
@@ -360,6 +378,8 @@ function telaMilitares() {
     const filaInicial = D.ativos.length ? `<details class="card" ${temHistorico ? '' : 'open'}>
         <summary><b>🔢 Montar fila inicial</b> <span class="muted">— quem traz primeiro, segundo…</span></summary>
         ${temHistorico ? '<p class="alerta">Atenção: montar a fila de novo apaga o histórico.</p>' : ''}
+        <p class="dica" style="margin:0 0 10px">💡 A data de início pode ser no passado. Ex.: se o Sgt A trouxe ontem e o Sgt B hoje,
+            coloque A em 1º, B em 2º e comece <b>ontem</b>: os dois ficam registrados e vão para o fim da fila.</p>
         <form data-form="fila-inicial" data-confirm="Montar a fila e começar a escala?">
             <ol class="fila-inicial" id="fila-inicial">
                 ${D.ativos.map(m => `<li draggable="true" data-id="${h(m.id)}"><span class="arrastar">☰</span> ${avatar(m)} ${h(R.nome(m))}
@@ -519,6 +539,9 @@ function telaAjustes() {
                 <label>Pães na sexta <input type="number" name="qtd_sexta" min="0" max="99" value="${h(D.qtdSexta)}"></label>
                 <label>Mensagem da lista do café (grupo) <textarea name="msg_cafe" rows="4">${h(D.cfg.msg_cafe)}</textarea></label>
                 <label>Produtos do lanche (um por linha) <textarea name="produtos_lanche" rows="8">${h(D.cfg.produtos_lanche)}</textarea></label>
+                <label>Participantes do café que NÃO estão na escala do pão (posto e nome, um por linha)
+                    <textarea name="participantes_cafe" rows="8" placeholder="Ex.:&#10;Cap Ribeiro&#10;1º Ten Andrade&#10;Sd Araújo">${h(D.cfg.participantes_cafe)}</textarea></label>
+                <p class="dica">Os ${D.ativos.length} militares da escala do pão já participam automaticamente. Total no café: <b>${D.participantes.length}</b>.</p>
                 <p class="dica">Os produtos entram em cada nova sexta de café; dá para tirar ou incluir itens só naquela semana. Na mensagem do café: <code>{data}</code> <code>{lista}</code> <code>{link}</code>.</p>
             </div>
             <button class="btn verde">Salvar sexta-feira</button>
@@ -832,6 +855,7 @@ const FORMS = {
             qtd_sexta: Math.max(0, Math.min(99, Number(v.qtd_sexta) || 0)),
             msg_cafe: v.msg_cafe.replace(/\r\n/g, '\n').trim(),
             produtos_lanche: R.listaProdutos(v.produtos_lanche.replace(/\r\n/g, '\n')).join('\n'),
+            participantes_cafe: R.listaProdutos(v.participantes_cafe.replace(/\r\n/g, '\n')).join('\n'),
         });
         return 'Configuração da sexta-feira salva.';
     },
