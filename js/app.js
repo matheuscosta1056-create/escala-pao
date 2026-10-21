@@ -1,5 +1,5 @@
-import * as R from './regras.js?v=7';
-import * as F from './dados.js?v=7';
+import * as R from './regras.js?v=8';
+import * as F from './dados.js?v=8';
 
 const $main = document.getElementById('conteudo');
 const $nav = document.getElementById('menu');
@@ -93,10 +93,10 @@ async function invalidarHoje() {
 // Atualiza o resumo da página pública (só nomes e datas) quando a escala muda
 async function publicar() {
     const canonico = v => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
-    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra(), R.hoje(), 6, D.qtdSexta), participantes: D.participantes };
+    const novo = { titulo: D.cfg.titulo, dias: R.resumoPublico(dadosRegra(), R.hoje(), 6, D.qtdSexta), participantes: D.participantes, cabecalho: D.cfg.cabecalho_impressao || '' };
     const atual = await F.lerPublico();
     if (atual === undefined) return console.warn('Página pública: sem permissão nas regras do Firestore.');
-    if (atual && canonico({ titulo: atual.titulo, dias: atual.dias, participantes: atual.participantes || [] }) === canonico(novo)) return;
+    if (atual && canonico({ titulo: atual.titulo, dias: atual.dias, participantes: atual.participantes || [], cabecalho: atual.cabecalho || '' }) === canonico(novo)) return;
     await F.salvarPublico({ ...novo, atualizado_em: agora() });
 }
 
@@ -143,11 +143,11 @@ function cartoesCafe(datas) {
         const faltam = R.faltamEscolher(D.participantes, itens);
         const texto = R.textoLanche(D.cfg.msg_cafe, d, itens, linkPublico());
         const lista = itens.map(i => `<div class="lanche-item ${i.nome ? 'ok' : ''}">
-            <span class="lanche-produto">${h(i.produto)}</span>
+            <span class="lanche-produto">${h(i.produto)}${i.extra ? ' <span class="selo">extra</span>' : ''}</span>
             <span class="lanche-nome">${i.nome ? h(i.nome) : '<i>livre</i>'}</span>
             <span class="lanche-acoes">
-                <button class="link" data-acao="lanche-definir" data-data="${d}" data-id="${h(i.id)}" data-produto="${h(i.produto)}" data-nome="${h(i.nome)}">${i.nome ? 'trocar' : 'pôr nome'}</button>
-                ${i.nome ? `<button class="link" data-acao="lanche-limpar" data-data="${d}" data-id="${h(i.id)}">liberar</button>` : ''}
+                ${i.extra ? '' : `<button class="link" data-acao="lanche-definir" data-data="${d}" data-id="${h(i.id)}" data-produto="${h(i.produto)}" data-nome="${h(i.nome)}">${i.nome ? 'trocar' : 'pôr nome'}</button>`}
+                ${i.nome && !i.extra ? `<button class="link" data-acao="lanche-limpar" data-data="${d}" data-id="${h(i.id)}">liberar</button>` : ''}
                 <button class="link perigo" data-acao="lanche-remover" data-data="${d}" data-id="${h(i.id)}" data-confirm="Tirar “${h(i.produto)}” da lista desta sexta?" title="Tirar da lista">✕</button>
             </span>
         </div>`).join('');
@@ -573,6 +573,7 @@ function telaAjustes() {
                     <span class="previa">${h(R.mensagem(D.cfg.msg_vespera, exemplo, R.addDias(hoje, 1)))}</span></label>
                 <label>Escala da semana (grupo) <textarea name="msg_grupo" rows="4">${h(D.cfg.msg_grupo)}</textarea></label>
                 <label>Nome do sistema <input name="titulo" value="${h(D.cfg.titulo)}" maxlength="60"></label>
+                <label>Cabeçalho da impressão (opcional) <input name="cabecalho_impressao" value="${h(D.cfg.cabecalho_impressao)}" maxlength="80" placeholder="Ex.: 2º CGEO — Seção de Pagamento de Pessoal"></label>
             </div>
             <p class="dica">Campos automáticos: <code>{posto}</code> <code>{nome}</code> <code>{data}</code> <code>{dia_semana}</code> · no grupo: <code>{periodo}</code> <code>{lista}</code> <code>{link}</code> (link da página pública; se não usar, ele vai no final) · *texto* fica em negrito no WhatsApp.</p>
             <button class="btn verde">Salvar mensagens</button>
@@ -866,7 +867,7 @@ const FORMS = {
 
     'config-salvar': async v => {
         const cfg = {};
-        for (const k of ['titulo', 'msg_dia', 'msg_vespera', 'msg_grupo']) cfg[k] = v[k].replace(/\r\n/g, '\n').trim();
+        for (const k of ['titulo', 'cabecalho_impressao', 'msg_dia', 'msg_vespera', 'msg_grupo']) cfg[k] = v[k].replace(/\r\n/g, '\n').trim();
         await F.salvar('config', 'geral', cfg);
         return 'Mensagens salvas.';
     },

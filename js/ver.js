@@ -1,7 +1,7 @@
 // Página pública: quem traz o pão hoje, escala da semana, lista do café de sexta e impressão
 
-import * as R from './regras.js?v=7';
-import { lerEscalaPublica, lerLanche, escolherItem } from './dados-publico.js?v=7';
+import * as R from './regras.js?v=8';
+import { lerEscalaPublica, lerLanche, escolherItem, incluirExtra } from './dados-publico.js?v=8';
 
 const $main = document.getElementById('conteudo');
 const $impressao = document.getElementById('impressao');
@@ -56,6 +56,15 @@ function descricao(d) {
 
 const participantes = () => pub.participantes || [];
 
+// Só nomes cadastrados (militares da escala + participantes do café), já com o último usado neste aparelho
+function selectNome() {
+    const meu = lembrarNome();
+    return `<select name="nome" required>
+        <option value="">Quem é você?</option>
+        ${participantes().map(n => `<option ${n === meu ? 'selected' : ''}>${h(n)}</option>`).join('')}
+    </select>`;
+}
+
 function cartaoLanche(dia) {
     const lanche = lanches[dia.data];
     if (!lanche) return '';
@@ -66,27 +75,38 @@ function cartaoLanche(dia) {
         let direita;
         if (i.nome) direita = `<span class="lanche-nome">✔ ${h(i.nome)}</span>`;
         else if (escolhendo === chave) {
-            // Só nomes cadastrados (militares da escala + participantes do café)
-            const meu = lembrarNome();
             direita = `<form class="lanche-escolher" data-data="${dia.data}" data-id="${h(i.id)}">
-                <select name="nome" required>
-                    <option value="">Quem é você?</option>
-                    ${participantes().map(n => `<option ${n === meu ? 'selected' : ''}>${h(n)}</option>`).join('')}
-                </select>
+                ${selectNome()}
                 <button class="btn verde">Confirmar</button>
             </form>`;
         } else direita = participantes().length
             ? `<button class="btn claro" data-escolher="${chave}">Eu levo</button>`
             : '<span class="lanche-nome"><i>livre</i></span>';
-        return `<div class="lanche-item ${i.nome ? 'ok' : ''}"><span class="lanche-produto">${h(i.produto)}</span>${direita}</div>`;
+        return `<div class="lanche-item ${i.nome ? 'ok' : ''}">
+            <span class="lanche-produto">${h(i.produto)}${i.extra ? ' <span class="selo">extra</span>' : ''}</span>${direita}</div>`;
     }).join('');
+
+    // Item que não está na lista
+    let outro = '';
+    if (participantes().length) {
+        outro = escolhendo === dia.data + '|novo'
+            ? `<form class="lanche-extra" data-data="${dia.data}">
+                <input name="produto" placeholder="O que você vai levar?" minlength="2" maxlength="60" required>
+                ${selectNome()}
+                <button class="btn verde">Confirmar</button>
+                <button type="button" class="btn claro" data-escolher="">Cancelar</button>
+            </form>`
+            : `<button class="btn claro lanche-outro" data-escolher="${dia.data}|novo">+ Vou levar outra coisa</button>`;
+    }
+
     return `<section class="card cafe-card">
         <div class="cabecalho"><h3>☕ Café da seção — ${R.dataExtenso(dia.data)}</h3>
             <span class="selo">${livres ? `${livres} ${livres === 1 ? 'item livre' : 'itens livres'}` : 'lista completa ✔'}</span></div>
         <p class="muted">${participantes().length
-            ? 'Escolha o que você vai levar: toque em “Eu levo” num item livre e selecione seu nome. Se seu nome não estiver na lista, fale com o responsável pela escala.'
+            ? 'Escolha o que você vai levar: toque em “Eu levo” num item livre e selecione seu nome. Vai levar algo que não está na lista? Use “Vou levar outra coisa”. Se seu nome não aparecer, fale com o responsável pela escala.'
             : 'A lista de participantes ainda não foi publicada. Fale com o responsável pela escala.'}</p>
         <div class="lanche-lista">${linhas}</div>
+        ${outro}
     </section>`;
 }
 
@@ -155,23 +175,43 @@ function render() {
     // Folha impressa da semana (+ lista do café, se a semana tiver)
     const cafeDaSemana = semana.find(d => d.cafe && lanches[d.data]);
     const itensCafe = cafeDaSemana ? R.itensLanche(lanches[cafeDaSemana.data], lanches[cafeDaSemana.data].escolhas) : [];
+    const linhaImpressa = d => {
+        let resp, cinza = false;
+        if (d.feriado) { resp = `<i>Feriado — ${h(d.feriado)}</i>`; cinza = true; }
+        else if (d.sem_pao) { resp = '<i>Sem pão</i>'; cinza = true; }
+        else if (d.cafe) resp = `<b>Café da seção</b>${cafeDaSemana ? '<span class="imp-obs">lista abaixo</span>' : ''}`;
+        else if (d.militar) resp = `<b>${h(d.militar)}</b>${d.qtd ? `<span class="imp-obs">${d.qtd} pães</span>` : ''}`;
+        else { resp = '<i>—</i>'; cinza = true; }
+        const dia = R.nomeDiaSemana(d.data).replace('-feira', '').replace(/^./, c => c.toUpperCase());
+        return `<tr class="${cinza ? 'imp-cinza' : ''}"><td><b>${dia}</b><span>${R.dataBr(d.data)}</span></td><td class="resp">${resp}</td><td></td></tr>`;
+    };
+    // Lista do café em duas colunas para caber na mesma folha
+    const metade = Math.ceil(itensCafe.length / 2);
+    const linhasCafe = Array.from({ length: metade }, (_, i) => {
+        const a = itensCafe[i], b = itensCafe[i + metade];
+        return `<tr><td>${h(a.produto)}</td><td>${h(a.nome)}</td><td>${b ? h(b.produto) : ''}</td><td>${b ? h(b.nome) : ''}</td></tr>`;
+    }).join('');
+
     $impressao.innerHTML = `
-        <h1>🥖 ${h(pub.titulo || 'Escala do Pão')}</h1>
-        <h2>Semana de ${periodo(semana, true)}</h2>
-        <table>
-            <thead><tr><th>Dia</th><th>Data</th><th>Quem traz o pão</th><th>Visto</th></tr></thead>
-            <tbody>${semana.map(d => {
-                const x = descricao(d);
-                return `<tr class="${x.classe}"><td>${R.nomeDiaSemana(d.data).replace(/^./, c => c.toUpperCase())}</td>
-                    <td>${R.dataBr(d.data)}</td><td>${x.icone ? x.icone + ' ' : ''}${h(x.texto)}${d.qtd ? ` (${d.qtd} pães)` : ''}</td><td></td></tr>`;
-            }).join('')}</tbody>
+        <div class="imp-topo">
+            ${pub.cabecalho ? `<div class="imp-org">${h(pub.cabecalho)}</div>` : ''}
+            <h1>${h(pub.titulo || 'Escala do Pão')}</h1>
+            <div class="imp-periodo">Semana de ${periodo(semana, true)}</div>
+        </div>
+        <table class="imp-escala">
+            <colgroup><col style="width:24%"><col><col style="width:24%"></colgroup>
+            <thead><tr><th>Dia</th><th>Responsável pelo pão</th><th>Rubrica</th></tr></thead>
+            <tbody>${semana.map(linhaImpressa).join('')}</tbody>
         </table>
-        ${cafeDaSemana ? `<h3>☕ Café da seção — ${R.dataBr(cafeDaSemana.data)}</h3>
-        <table class="tabela-cafe">
-            <thead><tr><th>Produto</th><th>Quem leva</th></tr></thead>
-            <tbody>${itensCafe.map(i => `<tr><td>${h(i.produto)}</td><td>${h(i.nome)}</td></tr>`).join('')}</tbody>
-        </table>` : ''}
-        <p class="rodape-impressao">Impresso em ${R.dataBr(hoje)}</p>`;
+        ${cafeDaSemana ? `<div class="imp-cafe">
+            <h2>Café da seção — ${R.nomeDiaSemana(cafeDaSemana.data)}, ${R.dataBr(cafeDaSemana.data)}</h2>
+            <table>
+                <colgroup><col style="width:22%"><col style="width:28%"><col style="width:22%"><col style="width:28%"></colgroup>
+                <thead><tr><th>Item</th><th>Quem leva</th><th>Item</th><th>Quem leva</th></tr></thead>
+                <tbody>${linhasCafe}</tbody>
+            </table>
+        </div>` : ''}
+        <div class="imp-rodape"><span>${h(pub.titulo || 'Escala do Pão')}</span><span>Impresso em ${R.dataBr(hoje)}</span></div>`;
 }
 
 async function carregarLanches() {
@@ -188,27 +228,31 @@ document.addEventListener('click', e => {
     }
     const escolher = e.target.closest('[data-escolher]');
     if (escolher) {
-        escolhendo = escolher.dataset.escolher;
+        escolhendo = escolher.dataset.escolher || null;
         render();
-        document.querySelector('.lanche-escolher select')?.focus();
+        document.querySelector('.lanche-extra input, .lanche-escolher select')?.focus();
     }
     if (e.target.closest('#btn-imprimir')) window.print();
 });
 
 document.addEventListener('submit', async e => {
-    const form = e.target.closest('.lanche-escolher');
+    const form = e.target.closest('.lanche-escolher, .lanche-extra');
     if (!form) return;
     e.preventDefault();
     const nome = form.nome.value;
     if (!nome) return aviso('Selecione seu nome na lista.', 'erro');
-    form.querySelector('button').disabled = true;
+    const extra = form.classList.contains('lanche-extra');
+    const produto = extra ? form.produto.value.trim().replace(/\s+/g, ' ') : '';
+    if (extra && produto.length < 2) return aviso('Escreva o que você vai levar.', 'erro');
+    form.querySelectorAll('button').forEach(b => b.disabled = true);
     try {
-        await escolherItem(form.dataset.data, form.dataset.id, nome);
+        if (extra) await incluirExtra(form.dataset.data, R.novoIdExtra(), produto, nome);
+        else await escolherItem(form.dataset.data, form.dataset.id, nome);
         lembrarNome(nome);
-        aviso('Anotado! Obrigado. ☕');
+        aviso(extra ? `Anotado: ${produto}. Obrigado! ☕` : 'Anotado! Obrigado. ☕');
     } catch (err) {
         console.error(err);
-        aviso(err.code === 'permission-denied' ? 'Esse item acabou de ser escolhido por outra pessoa. Escolha outro.' : 'Não foi possível salvar. Tente de novo.', 'erro');
+        aviso(err.code === 'permission-denied' && !extra ? 'Esse item acabou de ser escolhido por outra pessoa. Escolha outro.' : 'Não foi possível salvar. Tente de novo.', 'erro');
     }
     escolhendo = null;
     await carregarLanches();

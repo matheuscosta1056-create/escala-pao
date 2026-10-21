@@ -17,19 +17,32 @@ service cloud.firestore {
       allow write: if autorizado();
     }
 
-    // Café de sexta: qualquer um vê a lista e pega um item LIVRE (só o nome, sem sobrescrever);
-    // trocar, liberar e apagar é só com o administrador
+    // Café de sexta: qualquer um vê a lista e pega um item LIVRE (só o nome, sem sobrescrever)
+    // ou inclui um item que não estava na lista (produto + nome); trocar e apagar é só com o administrador
     match /lanche/{data} {
       allow read: if true;
       allow write: if autorizado();
 
       match /escolhas/{item} {
+        function nomeOk() {
+          return request.resource.data.nome is string
+            && request.resource.data.nome.size() >= 2
+            && request.resource.data.nome.size() <= 40;
+        }
+        function itemDaLista() {
+          return request.resource.data.keys().hasOnly(['nome'])
+            && item in get(/databases/$(database)/documents/lanche/$(data)).data.itens;
+        }
+        function itemExtra() {
+          return request.resource.data.keys().hasOnly(['nome', 'produto'])
+            && item.matches('x[0-9a-z]{6,30}')
+            && request.resource.data.produto is string
+            && request.resource.data.produto.size() >= 2
+            && request.resource.data.produto.size() <= 60
+            && exists(/databases/$(database)/documents/lanche/$(data));
+        }
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['nome'])
-          && request.resource.data.nome is string
-          && request.resource.data.nome.size() >= 2
-          && request.resource.data.nome.size() <= 40
-          && item in get(/databases/$(database)/documents/lanche/$(data)).data.itens;
+        allow create: if autorizado() || (nomeOk() && (itemDaLista() || itemExtra()));
         allow update, delete: if autorizado();
       }
     }

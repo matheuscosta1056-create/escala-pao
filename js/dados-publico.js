@@ -2,7 +2,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getFirestore, doc, getDoc, getDocs, setDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { firebaseConfig } from './firebase-config.js?v=7';
+import { firebaseConfig } from './firebase-config.js?v=8';
 
 const db = getFirestore(initializeApp(firebaseConfig));
 
@@ -20,3 +20,6 @@ export async function lerLanche(data) {
 
 // Só funciona se o item ainda estiver livre (as regras do Firestore não deixam sobrescrever)
 export const escolherItem = (data, id, nome) => setDoc(doc(db, 'lanche', data, 'escolhas', id), { nome });
+
+// Item que não estava na lista: entra como extra, já com o nome de quem vai levar
+export const incluirExtra = (data, id, produto, nome) => setDoc(doc(db, 'lanche', data, 'escolhas', id), { nome, produto });

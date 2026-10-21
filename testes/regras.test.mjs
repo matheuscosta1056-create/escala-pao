@@ -1,7 +1,7 @@
 // Rodar: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico, mensagem, listaProdutos, itensLanche, textoLanche, participantesCafe, faltamEscolher } from '../js/regras.js';
+import { simular, pendentesParaGravar, feriados, pascoa, feriadosNacionais, linkWhats, telefoneValido, resumoPublico, mensagem, listaProdutos, itensLanche, textoLanche, participantesCafe, faltamEscolher, novoIdExtra } from '../js/regras.js';
 
 const NOMES = ['Silva', 'Souza', 'Costa', 'Lima', 'Pereira', 'Almeida', 'Rocha', 'Gomes', 'Ribeiro', 'Martins', 'Carvalho', 'Araujo', 'Melo', 'Barbosa', 'Teixeira'];
 const HOJE = '2026-10-20';
@@ -154,6 +154,14 @@ test('lista do lanche', () => {
     assert.deepEqual(itens.map(i => i.produto), ['Pão', 'Suco', 'Bolo']);
     assert.equal(textoLanche('☕ {data}\n{lista}\n{link}', '2026-10-23', itens, 'http://x'),
         '☕ Sex 23/10\n• Pão — _(livre)_\n• Suco — Cb Novato\n• Bolo — _(livre)_\nhttp://x');
+});
+
+test('lista do lanche com item extra incluído na página pública', () => {
+    const itens = itensLanche({ itens: { i001: 'Pão', i002: 'Suco' } },
+        { i002: { nome: 'Cb A' }, xk2a: { nome: 'Sd B', produto: 'Pão de queijo' }, xk1z: { nome: 'Sd C', produto: 'Tapioca' } });
+    assert.deepEqual(itens.map(i => `${i.produto}|${i.nome}|${i.extra}`),
+        ['Pão||false', 'Suco|Cb A|false', 'Tapioca|Sd C|true', 'Pão de queijo|Sd B|true']);
+    assert.match(novoIdExtra(), /^x[0-9a-z]{8,20}$/);
 });
 
 test('participantes do café: escala do pão + extras, sem repetir', () => {

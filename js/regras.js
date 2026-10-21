@@ -279,11 +279,20 @@ export function mensagem(modelo, militar, d, qtdSexta = 0) {
 
 export const listaProdutos = texto => String(texto || '').split('\n').map(p => p.trim()).filter(Boolean);
 
-// Itens na ordem em que foram cadastrados: [{id, produto, nome}]
+// Itens na ordem em que foram cadastrados: [{id, produto, nome, extra}]
+// Os da lista fixa vêm de lanche.itens; os "extras" foram incluídos por alguém na página pública
+// (ficam só em escolhas, com o próprio produto)
 export function itensLanche(lanche, escolhas = {}) {
-    return Object.entries(lanche?.itens || {}).sort(([a], [b]) => a.localeCompare(b))
-        .map(([id, produto]) => ({ id, produto, nome: escolhas[id]?.nome || '' }));
+    const fixos = lanche?.itens || {};
+    const lista = Object.entries(fixos).sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, produto]) => ({ id, produto, nome: escolhas[id]?.nome || '', extra: false }));
+    const extras = Object.entries(escolhas).filter(([id, e]) => !(id in fixos) && e?.produto).sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, e]) => ({ id, produto: e.produto, nome: e.nome || '', extra: true }));
+    return [...lista, ...extras];
 }
+
+// Id de item extra: "x" + data/hora + sorteio (ordena pela hora em que foi incluído)
+export const novoIdExtra = () => 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const normalizar = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -311,6 +320,7 @@ export function textoLanche(modelo, d, itens, link = '') {
 
 export const MENSAGENS_PADRAO = {
     titulo: 'Escala do Pão',
+    cabecalho_impressao: '',
     msg_dia: 'Bom dia, {posto} {nome}! 🥖\nLembrete: hoje ({dia_semana}, {data}) é o seu dia de trazer o pão.\nObrigado!',
     msg_vespera: 'Boa tarde, {posto} {nome}! 🥖\nLembrete: amanhã ({dia_semana}, {data}) é o seu dia de trazer o pão.',
     msg_grupo: '🥖 *Escala do Pão* — {periodo}\n\n{lista}',

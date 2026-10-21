@@ -17,3 +17,11 @@ export async function escolherItem(data, id, nome) {
     lanche.escolhas[id] = { nome };
     sessionStorage.setItem('demo-escala', JSON.stringify(store));
 }
+
+export async function incluirExtra(data, id, produto, nome) {
+    const store = lerStore();
+    const lanche = store.lanche?.[data];
+    if (!lanche || lanche.escolhas[id]) throw Object.assign(new Error('não permitido'), { code: 'permission-denied' });
+    lanche.escolhas[id] = { nome, produto };
+    sessionStorage.setItem('demo-escala', JSON.stringify(store));
+}
